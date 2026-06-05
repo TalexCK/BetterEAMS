@@ -1,0 +1,22 @@
+# Sensitive student GPA and personnel directories
+shanghaitech_personnel_master.json
+fig/
+sso_cookie.txt
+
+# Course and grade datasets
+undergrad_courses.json
+grad_courses.json
+course_stats.json
+courses_with_details.json
+
+# Local Python caches and logs
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Local workspace files
+.DS_Store
+.idea/
+.vscode/
+*.log

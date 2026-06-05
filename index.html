@@ -1,0 +1,3168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetterEAMS - 上科大智能选课与数据分析中心</title>
+    <!-- Chart.js local bundle -->
+    <script src="chart.local.js"></script>
+    <script>
+        document.documentElement.dataset.chartReady = window.Chart ? 'true' : 'false';
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* =========================================================
+           微软 Fluent Design 2 设计系统
+           ========================================================= */
+        :root {
+            /* Fluent 2 暗色主题 (Mica/Acrylic) */
+            --bg-primary: #1c1c1c;
+            --bg-secondary: #202020;
+            --bg-card: rgba(38, 38, 38, 0.6);
+            --bg-card-hover: rgba(255, 255, 255, 0.05);
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+            --text-muted: #858585;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --accent-color: #60cdff; /* Windows 11 Accent Blue (Dark) */
+            --accent-color-hover: #76d5ff;
+            --accent-glow: rgba(96, 205, 255, 0.15);
+            --success-color: #6cbe45;
+            --warning-color: #ffb900;
+            --danger-color: #ff4343;
+            --info-color: #60cdff;
+            --scrollbar-bg: #202020;
+            --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+            --glass-bg: rgba(32, 32, 32, 0.55);
+            --glass-blur: blur(30px);
+            --fluent-shadow: 0 8px 16px rgba(0, 0, 0, 0.3), 0 0 1px rgba(255, 255, 255, 0.08);
+            --fluent-radius: 8px;
+            --fluent-radius-small: 4px;
+            --focus-stroke: #ffffff;
+            
+            /* Category Tag Colors */
+            --tag-compulsory: #e81123;
+            --tag-elective: #0078d4;
+            --tag-general-c: #ffb900;
+            --tag-general-e: #107c41;
+            --tag-pe: #b4009e;
+            --tag-grad: #8764b8;
+        }
+
+        [data-theme="light"] {
+            /* Fluent 2 亮色主题 (Mica/Acrylic) */
+            --bg-primary: #f3f3f3;
+            --bg-secondary: #ffffff;
+            --bg-card: rgba(255, 255, 255, 0.7);
+            --bg-card-hover: rgba(0, 0, 0, 0.03);
+            --text-primary: #202020;
+            --text-secondary: #5f5f5f;
+            --text-muted: #8b8b8b;
+            --border-color: rgba(0, 0, 0, 0.08);
+            --accent-color: #0078d4; /* Windows 11 Accent Blue (Light) */
+            --accent-color-hover: #1085de;
+            --accent-glow: rgba(0, 120, 212, 0.08);
+            --success-color: #107c41;
+            --warning-color: #d83b01;
+            --danger-color: #ea4335;
+            --info-color: #0078d4;
+            --scrollbar-bg: #f3f3f3;
+            --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+            --glass-bg: rgba(243, 243, 243, 0.6);
+            --glass-blur: blur(30px);
+            --fluent-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 0 1px rgba(0, 0, 0, 0.12);
+            --focus-stroke: #000000;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+
+        button, input, select {
+            font: inherit;
+            color: inherit;
+        }
+
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible {
+            outline: 2px solid var(--focus-stroke);
+            outline-offset: 1px;
+        }
+
+        /* 极窄 Fluent 滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--scrollbar-thumb);
+            border-radius: 6px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-color);
+        }
+
+        /* =========================================================
+           布局组件 (Layout)
+           ========================================================= */
+        .app-sidebar {
+            width: 320px;
+            background-color: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            z-index: 20;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+
+        .app-logo-area {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .app-logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--accent-color) 30%, #34d399 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #121212;
+            font-weight: 700;
+            font-size: 1.1rem;
+            box-shadow: 0 0 10px var(--accent-glow);
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .app-logo-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
+        .app-logo-subtitle {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 0.1rem;
+            font-weight: 400;
+        }
+
+        /* 学生卡片个人画像 widget */
+        .student-widget {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .student-widget-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .student-avatar {
+            width: 42px;
+            height: 42px;
+            background: var(--accent-glow);
+            color: var(--accent-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: 1px solid var(--border-color);
+        }
+
+        .student-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .student-name {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .student-id {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+
+        .student-meta-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-top: 0.4rem;
+        }
+
+        /* 学分条 tracker */
+        .credits-tracker {
+            margin-top: 0.8rem;
+        }
+
+        .credits-tracker-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 0.35rem;
+        }
+
+        .credits-bar-bg {
+            width: 100%;
+            height: 6px;
+            background-color: rgba(255, 255, 255, 0.08);
+            border-radius: 3px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .credits-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-color), #10b981);
+            width: 0%;
+            transition: width 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
+        }
+
+        /* 导航 Tab 按钮 */
+        .sidebar-nav {
+            padding: 1rem 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.6rem 1rem;
+            border-radius: var(--fluent-radius);
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.15s ease;
+            font-weight: 500;
+        }
+
+        .nav-item:hover {
+            background-color: var(--bg-card-hover);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+            font-weight: 600;
+            box-shadow: var(--fluent-shadow);
+            border-left: 3px solid var(--accent-color);
+        }
+
+        /* 必修课 Check-off widget */
+        .required-list-widget {
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--border-color);
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+
+        .required-widget-title {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .required-courses-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            max-height: 140px;
+            overflow-y: auto;
+            font-size: 0.78rem;
+        }
+
+        .required-course-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--text-secondary);
+        }
+
+        .required-course-info {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .required-checkbox {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            border: 1px solid var(--text-muted);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6rem;
+            font-weight: bold;
+        }
+
+        .required-checkbox.done {
+            background-color: var(--success-color);
+            border-color: var(--success-color);
+            color: #fff;
+        }
+
+        .required-checkbox.selected {
+            background-color: var(--accent-color);
+            border-color: var(--accent-color);
+            color: #121212;
+        }
+
+        .required-status-badge {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+        }
+        .required-status-badge.done {
+            color: var(--success-color);
+        }
+        .required-status-badge.selected {
+            color: var(--accent-color);
+            font-weight: bold;
+        }
+
+        .sidebar-footer {
+            padding: 0.8rem 1.25rem;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.72rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            color: var(--text-muted);
+        }
+
+        .preload-status {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-weight: 500;
+        }
+
+        /* =========================================================
+           右侧主内容区 (Main Pane)
+           ========================================================= */
+        .app-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .app-view {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            overflow-y: auto;
+            padding: 1.5rem 2rem;
+            gap: 1.5rem;
+        }
+
+        .app-view.active {
+            display: flex;
+            animation: viewFadeIn 0.25s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
+        }
+
+        @keyframes viewFadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .view-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.75rem;
+        }
+
+        .view-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary) 50%, var(--accent-color) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* =========================================================
+           选课系统组件 (Selection Portal Components)
+           ========================================================= */
+        
+        /* 课表卡片 */
+        .section-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--fluent-radius);
+            padding: 1.25rem;
+            box-shadow: var(--fluent-shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .section-card-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-left: 3px solid var(--accent-color);
+            padding-left: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Timetable Grid Table */
+        .timetable-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            border-radius: var(--fluent-radius);
+            border: 1px solid var(--border-color);
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+
+        .timetable-grid {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+            font-size: 0.78rem;
+            table-layout: fixed;
+        }
+
+        .timetable-grid th,
+        .timetable-grid td {
+            border: 1px solid var(--border-color);
+            padding: 0.45rem;
+            height: 48px;
+            vertical-align: middle;
+            position: relative;
+        }
+
+        .timetable-grid th {
+            background-color: rgba(0, 0, 0, 0.2);
+            font-weight: 600;
+            color: var(--text-secondary);
+            height: 38px;
+        }
+
+        .timetable-grid th:first-child {
+            width: 70px;
+        }
+
+        .period-num {
+            font-weight: 700;
+            font-size: 0.85rem;
+            display: block;
+            color: var(--accent-color);
+        }
+
+        .period-time {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            display: block;
+            margin-top: 0.1rem;
+        }
+
+        .timetable-empty-cell {
+            color: transparent;
+            transition: background-color 0.15s ease;
+        }
+
+        /* course block inside timetable */
+        .timetable-course-cell {
+            background-color: var(--cell-color);
+            color: var(--text-primary);
+            border-left: 4px solid var(--accent-color) !important;
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 0.3rem 0.4rem;
+            border-radius: var(--fluent-radius-small);
+            text-align: left;
+            line-height: 1.2;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+        }
+
+        .table-c-name {
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 0.15rem;
+        }
+
+        .table-c-venue {
+            font-size: 0.68rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .table-c-code {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+
+        /* timetables cell preview state */
+        .timetable-empty-cell.preview-slot {
+            outline: 2px dashed var(--accent-color) !important;
+            outline-offset: -2px;
+            background-color: rgba(96, 205, 255, 0.1);
+        }
+
+        .timetable-grid td.preview-conflict {
+            outline: 2px dashed var(--danger-color) !important;
+            outline-offset: -2px;
+            background-color: rgba(255, 67, 67, 0.15) !important;
+            animation: pulse-conflict 1s infinite alternate;
+        }
+
+        @keyframes pulse-conflict {
+            from { box-shadow: inset 0 0 4px rgba(255, 67, 67, 0.2); }
+            to { box-shadow: inset 0 0 12px rgba(255, 67, 67, 0.5); }
+        }
+
+        .table-c-withdraw {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background-color: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+
+        .timetable-course-cell:hover .table-c-withdraw {
+            opacity: 1;
+        }
+
+        .table-c-withdraw:hover {
+            background-color: var(--danger-color);
+        }
+
+        /* 已选课程表格 */
+        .elected-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+            text-align: left;
+        }
+
+        .elected-table th,
+        .elected-table td {
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .elected-table th {
+            background-color: rgba(0,0,0,0.1);
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .elected-table tr:hover td {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Category tags styling */
+        .c-tag {
+            font-size: 0.68rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-weight: 600;
+            color: #fff;
+            display: inline-block;
+        }
+        .c-tag.compulsory { background-color: var(--tag-compulsory); }
+        .c-tag.elective { background-color: var(--tag-elective); }
+        .c-tag.general-c { background-color: var(--tag-general-c); color: #121212; }
+        .c-tag.general-e { background-color: var(--tag-general-e); }
+        .c-tag.pe { background-color: var(--tag-pe); }
+        .c-tag.grad { background-color: var(--tag-grad); }
+        .c-tag.other { background-color: var(--text-muted); }
+
+        .btn-withdraw {
+            background-color: transparent;
+            border: 1px solid var(--danger-color);
+            color: var(--danger-color);
+            padding: 0.25rem 0.6rem;
+            border-radius: var(--fluent-radius-small);
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .btn-withdraw:hover {
+            background-color: var(--danger-color);
+            color: #fff;
+        }
+
+        /* 智能搜索及高级检索栏 */
+        .smart-search-bar {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            background-color: rgba(0, 0, 0, 0.1);
+            padding: 1rem;
+            border-radius: var(--fluent-radius);
+            border: 1px solid var(--border-color);
+        }
+
+        .search-row-main {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .search-main-input-wrapper {
+            position: relative;
+            flex: 1;
+        }
+
+        .search-main-input {
+            width: 100%;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-bottom: 2px solid var(--text-muted);
+            color: var(--text-primary);
+            padding: 0.55rem 1rem 0.55rem 2.2rem;
+            border-radius: var(--fluent-radius) var(--fluent-radius) 0 0;
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        .search-main-input:focus {
+            border-bottom-color: var(--accent-color);
+            background-color: var(--bg-card-hover);
+        }
+
+        .search-icon-placeholder {
+            position: absolute;
+            left: 0.8rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .search-row-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            align-items: center;
+        }
+
+        .filter-dropdown {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 0.4rem 0.8rem;
+            border-radius: var(--fluent-radius);
+            font-size: 0.82rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .filter-dropdown:focus {
+            border-color: var(--accent-color);
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            user-select: none;
+            padding: 0.3rem 0.5rem;
+            border-radius: var(--fluent-radius-small);
+            border: 1px solid transparent;
+        }
+
+        .checkbox-label:hover {
+            background-color: var(--bg-card-hover);
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            accent-color: var(--accent-color);
+            cursor: pointer;
+        }
+
+        /* 搜索卡片列表 */
+        .search-results-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .search-card-empty {
+            grid-column: span 2;
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .course-elect-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--fluent-radius);
+            padding: 1.1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            position: relative;
+            transition: all 0.2s cubic-bezier(0.1, 0.9, 0.2, 1);
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .course-elect-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--fluent-shadow);
+            background-color: var(--bg-card-hover);
+            border-color: var(--accent-color);
+        }
+
+        .course-elect-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .course-elect-title {
+            font-size: 0.98rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.3;
+        }
+
+        .course-elect-code {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.1rem;
+        }
+
+        .course-elect-info-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+        }
+
+        .course-elect-info-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        /* GPA stats widget inside search card */
+        .card-gpa-badge-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            background-color: rgba(0,0,0,0.15);
+            padding: 0.5rem;
+            border-radius: var(--fluent-radius-small);
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .card-gpa-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+
+        .card-gpa-stat-lbl {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .card-gpa-stat-val {
+            font-size: 0.85rem;
+            font-weight: 700;
+            font-family: 'Outfit', sans-serif;
+            color: var(--text-secondary);
+        }
+
+        .card-gpa-stat-val.high {
+            color: var(--accent-color);
+        }
+
+        /* 给分直方分布 mini css bar chart */
+        .card-dist-mini {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            margin-top: 0.2rem;
+        }
+
+        .card-dist-mini-title {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .card-dist-mini-bars {
+            display: flex;
+            height: 10px;
+            background-color: rgba(255,255,255,0.05);
+            border-radius: 5px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .card-dist-mini-bar-segment {
+            height: 100%;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+
+        .card-dist-mini-bar-segment:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #000;
+            color: #fff;
+            padding: 0.2rem 0.4rem;
+            font-size: 0.65rem;
+            border-radius: 4px;
+            white-space: nowrap;
+            z-index: 10;
+        }
+
+        .btn-elect {
+            width: 100%;
+            background-color: var(--accent-color);
+            color: #121212;
+            border: 1px solid transparent;
+            padding: 0.45rem 1rem;
+            border-radius: var(--fluent-radius);
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            transition: all 0.15s ease;
+        }
+
+        .btn-elect:hover:not(:disabled) {
+            background-color: var(--accent-color-hover);
+            box-shadow: 0 0 10px rgba(96, 205, 255, 0.4);
+        }
+
+        .btn-elect:disabled {
+            background-color: rgba(255,255,255,0.05);
+            color: var(--text-muted);
+            border-color: var(--border-color);
+            cursor: not-allowed;
+        }
+
+        .btn-elect.conflict {
+            background-color: rgba(255, 67, 67, 0.1);
+            color: var(--danger-color);
+            border-color: rgba(255, 67, 67, 0.3);
+        }
+
+        .btn-elect.elected {
+            background-color: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .conflict-desc-banner {
+            font-size: 0.7rem;
+            color: var(--danger-color);
+            margin-top: 0.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-weight: 500;
+        }
+
+        /* =========================================================
+           成绩画像与分析组件 (GPA & Analytics Components)
+           ========================================================= */
+        .analytics-container {
+            display: flex;
+            height: calc(100vh - 80px);
+            margin: -1.5rem -2rem;
+            overflow: hidden;
+        }
+
+        .analytics-sidebar {
+            width: 320px;
+            border-right: 1px solid var(--border-color);
+            background-color: rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .analytics-main-view {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        /* details stats layout */
+        .analytics-detail-header-panel {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--fluent-radius);
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--fluent-shadow);
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
+
+        .chart-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--fluent-radius);
+            padding: 1.5rem;
+            box-shadow: var(--fluent-shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 250px;
+            width: 100%;
+        }
+
+        /* =========================================================
+           修读学生数据表格
+           ========================================================= */
+        .students-table-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--fluent-radius);
+            padding: 1.5rem;
+            box-shadow: var(--fluent-shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .table-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .table-search-input {
+            width: 250px;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-bottom: 2px solid var(--text-muted);
+            color: var(--text-primary);
+            padding: 0.4rem 0.60rem;
+            border-radius: var(--fluent-radius) var(--fluent-radius) 0 0;
+            font-size: 0.85rem;
+            outline: none;
+        }
+        .table-search-input:focus {
+            border-bottom-color: var(--accent-color);
+        }
+
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            border-radius: var(--fluent-radius);
+            border: 1px solid var(--border-color);
+        }
+
+        .students-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.85rem;
+        }
+
+        .students-table th,
+        .students-table td {
+            padding: 0.65rem 0.8rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .students-table th {
+            background-color: rgba(0, 0, 0, 0.15);
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .students-table th:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+        }
+
+        .students-table td {
+            color: var(--text-secondary);
+        }
+
+        .students-table tr:hover td {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        .clickable-name {
+            color: var(--accent-color);
+            cursor: pointer;
+            font-weight: 500;
+            text-decoration: none;
+            border: none;
+            background: none;
+            outline: none;
+            text-align: left;
+        }
+
+        .clickable-name:hover {
+            text-decoration: underline;
+            color: var(--accent-color-hover);
+        }
+
+        .pass-badge {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .pass-badge.pass {
+            background-color: var(--success-color);
+            box-shadow: 0 0 6px var(--success-color);
+        }
+        .pass-badge.fail {
+            background-color: var(--danger-color);
+            box-shadow: 0 0 6px var(--danger-color);
+        }
+
+        /* =========================================================
+           Fluent 浮动卡片弹出模态框 (Student Modal)
+           ========================================================= */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .modal-container {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 1px rgba(255, 255, 255, 0.15);
+            width: 520px;
+            max-width: 90%;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            transform: scale(0.95);
+            transition: transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+        .modal-overlay.active .modal-container {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: rgba(0,0,0,0.05);
+        }
+        .modal-close {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.35rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .profile-photo-container {
+            width: 110px;
+            height: 146px;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--fluent-radius);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: var(--fluent-shadow);
+        }
+        .profile-photo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .profile-photo-fallback {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            background: linear-gradient(135deg, var(--accent-glow) 0%, rgba(255,255,255,0.02) 100%);
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+
+        .profile-details {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .profile-name-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.25rem;
+        }
+        .profile-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .profile-grid {
+            display: grid;
+            grid-template-columns: repeat(1, 1fr);
+            gap: 0.5rem;
+            font-size: 0.82rem;
+        }
+        .profile-item {
+            display: flex;
+            justify-content: space-between;
+            padding-bottom: 0.35rem;
+            border-bottom: 1px dashed var(--border-color);
+        }
+        .profile-label {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .profile-val {
+            color: var(--text-secondary);
+            font-weight: 500;
+            text-align: right;
+            user-select: all;
+        }
+
+        .chart-hint {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* Guide instructions style */
+        .guide-body {
+            padding: 1.5rem;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .code-block {
+            background-color: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            padding: 0.6rem 0.8rem;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.78rem;
+            color: #e2e8f0;
+            overflow-x: auto;
+            position: relative;
+        }
+        .copy-code-btn {
+            position: absolute;
+            right: 0.5rem;
+            top: 0.5rem;
+            background-color: rgba(255,255,255,0.08);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 0.2rem 0.4rem;
+            font-size: 0.6rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .copy-code-btn:hover {
+            background-color: var(--accent-color);
+            color: #000;
+        }
+
+        .guide-list {
+            list-style: none;
+            padding-left: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .guide-list li {
+            position: relative;
+            padding-left: 1rem;
+        }
+
+        .guide-list li::before {
+            content: '•';
+            color: var(--accent-color);
+            font-size: 1.1rem;
+            position: absolute;
+            left: 0;
+            top: -0.1rem;
+        }
+
+        /* Util helper classes */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .alert-banner {
+            padding: 0.75rem 1rem;
+            border-radius: var(--fluent-radius);
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border: 1px solid transparent;
+        }
+
+        .alert-banner.info {
+            background-color: rgba(96, 205, 255, 0.1);
+            color: var(--accent-color);
+            border-color: rgba(96, 205, 255, 0.2);
+        }
+        
+        .alert-banner.warning {
+            background-color: rgba(255, 185, 0, 0.15);
+            color: var(--warning-color);
+            border-color: rgba(255, 185, 0, 0.25);
+        }
+
+        .alert-banner.danger {
+            background-color: rgba(255, 67, 67, 0.1);
+            color: var(--danger-color);
+            border-color: rgba(255, 67, 67, 0.2);
+        }
+
+        /* Visual indicator for search result counts */
+        .search-count-bubble {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 0.15rem 0.45rem;
+            border-radius: 10px;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body data-theme="dark">
+
+    <!-- Sidebar 侧边栏导航与画像 -->
+    <aside class="app-sidebar">
+        <!-- Logo -->
+        <div class="app-logo-area">
+            <div class="app-logo-icon">B</div>
+            <div>
+                <h1 class="app-logo-title">BetterEAMS</h1>
+                <p class="app-logo-subtitle">上海科技大学智能辅助选课系统</p>
+            </div>
+        </div>
+
+        <!-- Student Profile Widget -->
+        <div class="student-widget">
+            <div class="student-widget-header">
+                <div class="student-avatar" id="avatar-initial">李</div>
+                <div class="student-info">
+                    <span class="student-name" id="profile-widget-name">李翰泽</span>
+                    <span class="student-id" id="profile-widget-id">2024533061</span>
+                </div>
+            </div>
+            <div class="student-meta-item">
+                <span>开课院系:</span>
+                <span id="profile-widget-college" style="font-weight:500;">信息科学与技术学院</span>
+            </div>
+            <div class="student-meta-item">
+                <span>专业方向:</span>
+                <span id="profile-widget-specialty" style="font-weight:500;">计算机科学与技术</span>
+            </div>
+
+            <!-- Credits Limit Tracker -->
+            <div class="credits-tracker">
+                <div class="credits-tracker-header">
+                    <span>选课阶段学分进度 (暑期第一轮)</span>
+                    <span id="credits-fraction">5.0 / 7.0</span>
+                </div>
+                <div class="credits-bar-bg">
+                    <div class="credits-bar-fill" id="credits-bar-fill" style="width: 71.4%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <nav class="sidebar-nav">
+            <button class="nav-item active" id="tab-elect-btn" type="button">
+                🏫 智能选课系统
+            </button>
+            <button class="nav-item" id="tab-analytics-btn" type="button">
+                📊 历史绩点给分画像
+            </button>
+            <button class="nav-item" id="nav-guide-btn" type="button" style="margin-top:auto;">
+                📖 数据同步指南
+            </button>
+        </nav>
+
+        <!-- Required Courses Widget -->
+        <div class="required-list-widget">
+            <div class="required-widget-title">
+                <span>专业核心课对照 check-off</span>
+                <span style="font-size:0.65rem; color:var(--accent-color);" id="required-count-fraction">0 / 0</span>
+            </div>
+            <div class="required-courses-list" id="required-courses-list">
+                <!-- Loaded dynamically by JS based on student major -->
+            </div>
+        </div>
+
+        <!-- Sidebar Footer Status -->
+        <div class="sidebar-footer">
+            <div class="preload-status" id="db-load-indicator">
+                <span style="color:var(--warning-color)">🔄</span> 正在后台预载画像数据库 (33MB)...
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.2rem;">
+                <span>版本 V1.1 (Stable)</span>
+                <button id="theme-toggle" style="background:none; border:none; color:var(--accent-color); cursor:pointer; font-size:0.75rem;" type="button">
+                    ☀️ 亮色模式
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Pane 主工作区 -->
+    <main class="app-main">
+
+        <!-- VIEW 1: 智能选课系统 view -->
+        <section class="app-view active" id="elect-view">
+            <div class="view-header">
+                <div>
+                    <h2 class="view-title">智能辅助选课模拟面板</h2>
+                    <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.15rem;">
+                        支持无冲突课程实时隐藏、历史绩点穿透查询、以及一键课程排表预览。
+                    </p>
+                </div>
+                <div class="alert-banner info" id="elect-header-summary">
+                    已排 <strong>3</strong> 门课程，共计 <strong>5.0</strong> 学分
+                </div>
+            </div>
+
+            <!-- Timetable Calendar Visual Grid -->
+            <div class="section-card">
+                <div class="section-card-title">
+                    <span>📅 我的课程表我的排列</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">
+                        * 划过下方课程列表可在课表上显示时间预览
+                    </span>
+                </div>
+                <div class="timetable-wrapper">
+                    <table class="timetable-grid">
+                        <thead>
+                            <tr>
+                                <th>节次</th>
+                                <th>星期一</th>
+                                <th>星期二</th>
+                                <th>星期三</th>
+                                <th>星期四</th>
+                                <th>星期五</th>
+                            </tr>
+                        </thead>
+                        <tbody id="timetable-body">
+                            <!-- Populated dynamically by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Elected list details -->
+            <div class="section-card">
+                <div class="section-card-title">
+                    <span>📝 已选课程明细列表</span>
+                </div>
+                <div style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--fluent-radius);">
+                    <table class="elected-table">
+                        <thead>
+                            <tr>
+                                <th>课程序号</th>
+                                <th>课程代码</th>
+                                <th>课程名称</th>
+                                <th>课程类别</th>
+                                <th>学分</th>
+                                <th>任课教师</th>
+                                <th>上课地点</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="elected-courses-table-body">
+                            <!-- Populated dynamically by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Smart search and Filter panel -->
+            <div class="section-card">
+                <div class="section-card-title">
+                    <span>🔍 智能课程检索与给分参考库</span>
+                </div>
+                
+                <div class="smart-search-bar">
+                    <div class="search-row-main">
+                        <div class="search-main-input-wrapper">
+                            <span class="search-icon-placeholder">🔍</span>
+                            <label for="smart-search-input" class="sr-only">智能检索课程</label>
+                            <input type="text" id="smart-search-input" class="search-main-input" placeholder="输入课程名, 课程代码, 教师姓名, 教室编号或特定标签进行智能搜索...">
+                        </div>
+                    </div>
+                    
+                    <div class="search-row-filters">
+                        <label for="filter-category" class="sr-only">课程类别</label>
+                        <select id="filter-category" class="filter-dropdown">
+                            <option value="ALL">所有课程类别</option>
+                            <option value="专业必修">专业必修</option>
+                            <option value="专业选修">专业选修</option>
+                            <option value="通识必修">通识必修</option>
+                            <option value="通识选修">通识选修</option>
+                            <option value="体育课程">体育课程</option>
+                            <option value="任意选修">任意选修</option>
+                            <option value="研究生课程">研究生课程</option>
+                        </select>
+
+                        <label for="filter-department" class="sr-only">开课院系</label>
+                        <select id="filter-department" class="filter-dropdown">
+                            <option value="ALL">所有开课院系</option>
+                            <option value="信息科学与技术学院">信息学院 (SIST)</option>
+                            <option value="创业与管理学院">创管学院 (SEM)</option>
+                            <option value="物质科学与技术学院">物质学院 (SPST)</option>
+                            <option value="生命科学与技术学院">生命学院 (SLST)</option>
+                            <option value="创意与艺术学院">创艺学院 (SCA)</option>
+                            <option value="人文科学研究院">人文科学研究院 (HRI)</option>
+                        </select>
+
+                        <label for="filter-credits" class="sr-only">学分</label>
+                        <select id="filter-credits" class="filter-dropdown">
+                            <option value="ALL">学分: 任意</option>
+                            <option value="1">1.0 学分</option>
+                            <option value="2">2.0 学分</option>
+                            <option value="3">3.0 学分</option>
+                            <option value="4">4.0 学分</option>
+                        </select>
+
+                        <label class="checkbox-label" for="toggle-conflict-free">
+                            <input type="checkbox" id="toggle-conflict-free">
+                            <span>仅显示无冲突课程 (智能隐藏)</span>
+                        </label>
+
+                        <label class="checkbox-label" for="toggle-easy-gpa">
+                            <input type="checkbox" id="toggle-easy-gpa">
+                            <span>仅显示历史高分课 (平均绩点 ≥ 3.3)</span>
+                        </label>
+
+                        <label for="filter-sort" class="sr-only">排序方式</label>
+                        <select id="filter-sort" class="filter-dropdown" style="margin-left:auto;">
+                            <option value="gpa-desc">按给分平均绩点: 高 ➔ 低</option>
+                            <option value="gpa-asc">按给分平均绩点: 低 ➔ 高</option>
+                            <option value="enroll-desc">按历史选课人数: 多 ➔ 少</option>
+                            <option value="code-asc">按课程代码: 升序</option>
+                            <option value="credits-desc">按学分大小: 大 ➔ 小</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Results List Info -->
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem;">
+                    <div style="color:var(--text-secondary)">
+                        匹配到课程数: <strong id="smart-matched-count" style="color:var(--accent-color)">0</strong> / <span id="smart-total-count">0</span>
+                    </div>
+                    <button id="reset-smart-filters-btn" style="background:none; border:none; color:var(--accent-color); cursor:pointer;" type="button">重置所有检索</button>
+                </div>
+
+                <!-- Course Cards Grid -->
+                <div class="search-results-grid" id="smart-search-results-container">
+                    <div class="search-card-empty">载入课程检索数据中...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW 2: 课程给分画像 view -->
+        <section class="app-view" id="analytics-view">
+            <div class="analytics-container">
+                <!-- Left Sidebar: Course List -->
+                <aside class="analytics-sidebar">
+                    <div style="padding:1rem; border-bottom:1px solid var(--border-color); display:flex; flex-direction:column; gap:0.5rem;">
+                        <label for="ana-search-input" class="sr-only">搜索画像课程</label>
+                        <input type="text" id="ana-search-input" class="table-search-input" style="width:100%" placeholder="模糊过滤课程名或代码...">
+                        
+                        <label for="ana-sort-select" class="sr-only">画像排序</label>
+                        <select id="ana-sort-select" class="filter-dropdown" style="width:100%; font-size:0.75rem; padding:0.3rem 0.6rem;">
+                            <option value="count-desc">历史修读人数: 多 ➔ 少</option>
+                            <option value="gpa-desc">历史给分平均: 高 ➔ 低</option>
+                            <option value="code-asc">课程代码: A ➔ Z</option>
+                        </select>
+                    </div>
+                    <div id="ana-course-list" class="results-list" style="flex:1;">
+                        <!-- JS renders -->
+                    </div>
+                </aside>
+
+                <!-- Right Detail Content View -->
+                <article class="analytics-main-view">
+                    <!-- Default welcome view -->
+                    <div id="ana-welcome-view" style="display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1; text-align:center; color:var(--text-secondary); gap:1rem;">
+                        <div class="app-logo-icon" style="width:52px; height:52px; font-size:1.5rem; border-radius:10px;">📊</div>
+                        <div>
+                            <h3 style="font-size:1.2rem; font-weight:700; color:var(--text-primary);">课程给分大数据画像面板</h3>
+                            <p style="font-size:0.85rem; opacity:0.7; margin-top:0.4rem; max-width:480px;">
+                                请在左侧列表中选择一门具体课程，以穿透调取该门课的历史选课热度、绩点平均水平走势、成绩等级占比以及学籍画像修读名册。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Detail course display view -->
+                    <div id="ana-detail-view" style="display:none; flex-direction:column; gap:1.5rem;">
+                        <!-- Header Detail Card -->
+                        <div class="analytics-detail-header-panel">
+                            <div>
+                                <span class="c-tag compulsory" id="ana-course-cat-badge">专业必修</span>
+                                <h3 class="detail-name" id="ana-course-name" style="margin-top:0.4rem;">计算机体系结构I</h3>
+                                <div class="detail-dept" id="ana-course-meta-sub">
+                                    <span id="ana-course-code" style="font-family:monospace; font-weight:bold; color:var(--accent-color);">CS110</span>
+                                    <span style="margin:0 0.5rem; color:var(--border-color);">|</span>
+                                    <span id="ana-course-dept">信息科学与技术学院</span>
+                                    <span style="margin:0 0.5rem; color:var(--border-color);">|</span>
+                                    <span id="ana-course-credits">4.0 学分</span>
+                                </div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:0.75rem; color:var(--text-muted); font-weight:600; text-transform:uppercase;">历史给分均绩</div>
+                                <div class="detail-name" style="color:var(--accent-color);" id="ana-course-gpa">3.518</div>
+                            </div>
+                        </div>
+
+                        <!-- Charts grid -->
+                        <div class="charts-grid">
+                            <div class="chart-card">
+                                <div class="chart-title">📊 历年成绩等级人数频数分布直方图</div>
+                                <div class="chart-container">
+                                    <canvas id="courseDistributionChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-card">
+                                <div class="chart-title">📈 课程各学期平均绩点给分走势折线图</div>
+                                <div class="chart-container">
+                                    <canvas id="courseSemesterTrendChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Student roster table -->
+                        <div class="students-table-card">
+                            <div class="chart-title">👥 历届选修修读学生画像名册 (支持字段排序)</div>
+                            
+                            <div class="table-toolbar">
+                                <div style="position:relative;">
+                                    <label for="ana-roster-search" class="sr-only">搜索名册</label>
+                                    <input type="text" id="ana-roster-search" class="table-search-input" placeholder="输入学号或姓名过滤...">
+                                </div>
+                                <div style="font-size:0.78rem; color:var(--text-muted);" id="ana-roster-count">
+                                    总计修读记录: <strong id="roster-count-val">0</strong> 条
+                                </div>
+                            </div>
+
+                            <div class="table-wrapper">
+                                <table class="students-table" id="students-table">
+                                    <thead>
+                                        <tr>
+                                            <th data-field="semester">修读学期 ↕</th>
+                                            <th data-field="studentId">学号 ↕</th>
+                                            <th data-field="studentName">姓名 ↕</th>
+                                            <th data-field="studentOverallGpa">学生整体GPA ↕</th>
+                                            <th data-field="mark">课程获得得分 ↕</th>
+                                            <th data-field="isPass">修读状态 ↕</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="students-table-body">
+                                        <!-- Loaded dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal 1: Student Detail Contact Card Popup -->
+    <div class="modal-overlay" id="student-modal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <span style="font-weight:600; font-size:0.95rem; color:var(--text-secondary);">学籍及联系人画像名片</span>
+                <button class="modal-close" id="student-modal-close" onclick="closeStudentModal()" type="button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="profile-photo-container">
+                    <img id="modal-photo" class="profile-photo" src="" alt="照片" style="display: none;">
+                    <div id="modal-photo-fallback" class="profile-photo-fallback">学</div>
+                </div>
+                <div class="profile-details">
+                    <div class="profile-name-row">
+                        <span class="profile-name" id="modal-name">安丽华</span>
+                        <span class="role-badge student" id="modal-gender-badge">女</span>
+                    </div>
+                    <div class="profile-grid">
+                        <div class="profile-item">
+                            <span class="profile-label">学号/工号:</span>
+                            <span class="profile-val" id="modal-id">2022131001</span>
+                        </div>
+                        <div class="profile-item">
+                            <span class="profile-label">手机号码:</span>
+                            <span class="profile-val" id="modal-mobile" style="color:var(--accent-color);">13812345678</span>
+                        </div>
+                        <div class="profile-item">
+                            <span class="profile-label">电子邮箱:</span>
+                            <span class="profile-val" id="modal-email">anlh@shanghaitech.edu.cn</span>
+                        </div>
+                        <div class="profile-item">
+                            <span class="profile-label">入学年级:</span>
+                            <span class="profile-val" id="modal-grade">2022 级</span>
+                        </div>
+                        <div class="profile-item">
+                            <span class="profile-label">主修学院:</span>
+                            <span class="profile-val" id="modal-college">信息科学与技术学院</span>
+                        </div>
+                        <div class="profile-item">
+                            <span class="profile-label">主修专业:</span>
+                            <span class="profile-val" id="modal-specialty">计算机科学与技术</span>
+                        </div>
+                        <div class="profile-item">
+                            <span class="profile-label">政治面貌:</span>
+                            <span class="profile-val" id="modal-party">中共党员</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Data Update Instructions -->
+    <div class="modal-overlay" id="guide-modal">
+        <div class="modal-container" style="width: 580px;">
+            <div class="modal-header">
+                <span style="font-weight:600; font-size:0.95rem;">💡 EAMS 课程大纲抓取更新指南</span>
+                <button class="modal-close" id="guide-modal-close" type="button">&times;</button>
+            </div>
+            <div class="guide-body">
+                <p>本选课模拟系统的底层数据基于学校教务大纲构建。如需抓取最新学期的全量选课代码、排表日程及教师明细，请遵循以下流程：</p>
+                <ol class="guide-list">
+                    <li>
+                        <strong>登录学校教务系统 (EAMS)</strong>：<br>
+                        在浏览器中登录并在当前会话处于激活状态时，打开开发者面板 (F12) 切换至控制台。
+                    </li>
+                    <li>
+                        <strong>拷贝 SSO 会话 Cookie</strong>：<br>
+                        在控制台中执行以下代码，会将你的鉴权会话直接拷入系统剪贴板：
+                        <div class="code-block" style="margin-top:0.4rem;">
+                            <button class="copy-code-btn" onclick="copyCodeText(this)">复制</button>
+                            <span class="code-text">copy(document.cookie)</span>
+                        </div>
+                    </li>
+                    <li>
+                        <strong>保存为 Cookie 配置文件</strong>：<br>
+                        在项目根目录新建或覆写名为 <code>sso_cookie.txt</code> 的纯文本，并将刚刚复制的 Cookie 文本粘入保存。
+                    </li>
+                    <li>
+                        <strong>执行本地下载爬虫</strong>：<br>
+                        在项目根目录的终端中运行以下脚本，即可完成教务接口分页爬取与自动清洗聚合：
+                        <div class="code-block" style="margin-top:0.4rem;">
+                            <button class="copy-code-btn" onclick="copyCodeText(this)">复制</button>
+                            <span class="code-text">python3 download_courses.py && python3 build_course_db.py</span>
+                        </div>
+                    </li>
+                </ol>
+                <p style="color:var(--text-muted); font-size:0.75rem;">
+                    * 提示: 本科生课程接口为公开状态无需 Cookie，配置 Cookie 后脚本将自动获取完整的研究生及本研一体大纲。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Javascript Logical Wiring -->
+    <script>
+        // =========================================================
+        // 全局状态管理
+        // =========================================================
+        let coursesDatabase = [];   // 全量 enriched 课程库 (从 courses_with_details.json 获取)
+        let masterData = [];        // 33MB 全量画像数据 (后台预载)
+        let studentDetails = {};    // id -> student object
+        let electedCourses = [];    // 已选/已排课程 objects
+        let isMasterDataLoaded = false;
+        
+        // 常数配置
+        const CREDIT_LIMIT = 7.0;
+        const INITIAL_ELECTED_CODES = ["ARTS1205", "MT1018", "CPRA1005"]; // 初始选课代码
+
+        // 专业核心必修课 check-off 配置 (SIST 计算机科学)
+        const REQUIRED_COURSES_CHECKLIST = [
+            { code: "GEMA1001", name: "高等数学I" },
+            { code: "SI131", name: "线性代数" },
+            { code: "SI140", name: "概率论与数理统计" },
+            { code: "SI100B", name: "信息科学技术导论" },
+            { code: "CS110", name: "计算机体系结构I" },
+            { code: "CS120", name: "计算机网络" },
+            { code: "CS130", name: "操作系统I" },
+            { code: "CS132", name: "软件工程" },
+            { code: "CS131", name: "编译原理" }
+        ];
+
+        // 课程画像详情页状态
+        let activeAnaCourse = null;
+        let courseDistChartInstance = null;
+        let courseTrendChartInstance = null;
+        let rosterSortField = 'semester';
+        let rosterSortOrder = 'desc';
+        let rosterFilterQuery = '';
+
+        // =========================================================
+        // 初始化载入
+        // =========================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            setupTabNavigation();
+            setupEventListeners();
+            loadPrimaryData();
+            preloadMasterDataInBackground();
+        });
+
+        // 1. 配色主题初始化
+        function initTheme() {
+            const savedTheme = localStorage.getItem('fluent-theme') || 'dark';
+            setTheme(savedTheme);
+        }
+
+        function setTheme(theme) {
+            document.body.setAttribute('data-theme', theme);
+            const btn = document.getElementById('theme-toggle');
+            if (theme === 'dark') {
+                btn.innerHTML = '☀️ 亮色模式';
+            } else {
+                btn.innerHTML = '🌙 暗色模式';
+            }
+            localStorage.setItem('fluent-theme', theme);
+            
+            // 重绘画像图表
+            if (activeAnaCourse) {
+                renderCourseCharts(activeAnaCourse.enrollments || []);
+            }
+        }
+
+        // 2. 导航 Tab 切换逻辑
+        function setupTabNavigation() {
+            const tabElectBtn = document.getElementById('tab-elect-btn');
+            const tabAnalyticsBtn = document.getElementById('tab-analytics-btn');
+            
+            const viewElect = document.getElementById('elect-view');
+            const viewAnalytics = document.getElementById('analytics-view');
+
+            tabElectBtn.addEventListener('click', () => {
+                tabElectBtn.classList.add('active');
+                tabAnalyticsBtn.classList.remove('active');
+                viewElect.classList.add('active');
+                viewAnalytics.classList.remove('active');
+            });
+
+            tabAnalyticsBtn.addEventListener('click', () => {
+                tabAnalyticsBtn.classList.add('active');
+                tabElectBtn.classList.remove('active');
+                viewAnalytics.classList.add('active');
+                viewElect.classList.remove('active');
+                
+                // 初次打开画像标签，自动更新一次左侧列表
+                renderAnalyticsSidebar();
+            });
+        }
+
+        // 3. 数据加载逻辑 (核心优化：双通道加载)
+        function loadPrimaryData() {
+            // 首先拉取 300KB 的 enriched 课程大纲，保证秒开
+            fetch('courses_with_details.json')
+                .then(res => {
+                    if (!res.ok) throw new Error("无法拉取 courses_with_details.json");
+                    return res.json();
+                })
+                .then(data => {
+                    coursesDatabase = data;
+                    document.getElementById('smart-total-count').innerText = coursesDatabase.length;
+                    
+                    // 过滤出初始选定课程
+                    electedCourses = coursesDatabase.filter(c => INITIAL_ELECTED_CODES.includes(c.code));
+                    
+                    // 初始触发渲染
+                    updateElectedSummaryAndBar();
+                    renderTimetable();
+                    renderElectedListTable();
+                    applySmartFilters();
+                })
+                .catch(err => {
+                    console.error("初级大纲加载错误:", err);
+                    document.getElementById('smart-search-results-container').innerHTML = `
+                        <div class="search-card-empty" style="color:var(--danger-color); font-weight:600;">
+                            ❌ 初始化课程大纲失败，请运行 download_courses.py 与 build_course_db.py 重新生成数据。<br>
+                            <span style="font-size:0.72rem; color:var(--text-muted); font-weight:400;">错误信息: ${err.message}</span>
+                        </div>
+                    `;
+                });
+        }
+
+        // 后台异步大文件预加载，绝不阻塞选课操作
+        function preloadMasterDataInBackground() {
+            const indicator = document.getElementById('db-load-indicator');
+            
+            fetch('shanghaitech_personnel_master.json')
+                .then(res => {
+                    if (!res.ok) throw new Error("无法读取 shanghaitech_personnel_master.json");
+                    return res.json();
+                })
+                .then(data => {
+                    masterData = data;
+                    isMasterDataLoaded = true;
+                    
+                    // 构建学生学号字典
+                    masterData.forEach(item => {
+                        studentDetails[item.id] = item;
+                    });
+                    
+                    // 更新指示器
+                    indicator.innerHTML = '<span style="color:var(--success-color)">✅</span> 画像大宽表已就绪';
+                    
+                    // 如果已选课程有对应的画像统计，可以异步注入给画像渲染
+                    resolveAnalyticsRosters();
+                    updateRequiredChecklist();
+                })
+                .catch(err => {
+                    console.error("画像大宽表背景载入错误:", err);
+                    indicator.innerHTML = '<span style="color:var(--danger-color)">❌</span> 画像数据库加载失败';
+                });
+        }
+
+        // 将 master 里的修读学生列表提取归入 coursesDatabase 里的具体课程中 (成绩画像渲染所用)
+        function resolveAnalyticsRosters() {
+            if (!isMasterDataLoaded || coursesDatabase.length === 0) return;
+            
+            // 为每门课构建一个 enrollments 容器
+            const enrollmentsMap = {};
+            
+            masterData.forEach(std => {
+                if (std.personnel_type !== 'student' || !std.scores) return;
+                let parsedScores;
+                try {
+                    parsedScores = typeof std.scores === 'string' ? JSON.parse(std.scores) : std.scores;
+                } catch(e) { return; }
+                
+                if (!parsedScores || !parsedScores.scoreArray) return;
+                
+                parsedScores.scoreArray.forEach(semester => {
+                    const semName = semester.name;
+                    (semester.value || []).forEach(c => {
+                        const courseName = c.name;
+                        if (!enrollmentsMap[courseName]) {
+                            enrollmentsMap[courseName] = [];
+                        }
+                        
+                        let gp = parseFloat(c.value?.mark);
+                        let isPass = c.value?.isPass === "1" || c.value?.mark === "通过" || (!isNaN(gp) && gp >= 1.0);
+                        
+                        let overallGpa = '-';
+                        if (std.custom_gpa) {
+                            overallGpa = std.custom_gpa;
+                        } else if (std.gpa_summary) {
+                            let gpaSumObj;
+                            try { gpaSumObj = typeof std.gpa_summary === 'string' ? JSON.parse(std.gpa_summary) : std.gpa_summary; } catch(e){}
+                            if (gpaSumObj) overallGpa = gpaSumObj.gpa || '-';
+                        }
+                        
+                        enrollmentsMap[courseName].push({
+                            studentId: std.id,
+                            studentName: std.name,
+                            studentOverallGpa: overallGpa,
+                            semester: semName,
+                            mark: c.value?.mark || '-',
+                            isPass: isPass
+                        });
+                    });
+                });
+            });
+
+            // 存回 coursesDatabase
+            coursesDatabase.forEach(course => {
+                course.enrollments = enrollmentsMap[course.name] || [];
+            });
+            
+            // 如果画像里正在浏览，刷新它
+            if (activeAnaCourse) {
+                // 找到刷新它的数据
+                const freshCourse = coursesDatabase.find(c => c.code === activeAnaCourse.code);
+                if (freshCourse) {
+                    activeAnaCourse = freshCourse;
+                    renderRosterTable();
+                    renderCourseCharts(activeAnaCourse.enrollments || []);
+                }
+            }
+        }
+
+        // =========================================================
+        // 核心逻辑: 课程表与选课行为
+        // =========================================================
+        
+        // 1. 星期与节次文字映射
+        function getPeriodTimeRange(p) {
+            const times = {
+                1: "08:15", 2: "09:05", 3: "10:10", 4: "11:00",
+                5: "13:00", 6: "13:50", 7: "14:50", 8: "15:40",
+                9: "16:40", 10: "17:30", 11: "19:00", 12: "19:50", 13: "20:40"
+            };
+            return times[p] || "";
+        }
+
+        // 2. 渲染可视化课程表 Grid
+        function renderTimetable() {
+            const gridBody = document.getElementById('timetable-body');
+            gridBody.innerHTML = '';
+            
+            const dayCols = [1, 2, 3, 4, 5]; // 周一到周五
+            const periods = Array.from({length: 13}, (_, i) => i + 1); // 1-13节
+            
+            // 建立时间占用字典与跨度字典
+            const occupied = {};      // day_period -> course
+            const startSlots = {};    // day_period -> { course, length }
+            const skipSlots = {};     // day_period -> true
+            
+            electedCourses.forEach(c => {
+                c.schedule.forEach(slot => {
+                    const day = slot.day;
+                    const sortedP = [...slot.periods].sort((a,b) => a-b);
+                    const start = sortedP[0];
+                    const len = sortedP.length;
+                    
+                    startSlots[`${day}_${start}`] = { course: c, length: len };
+                    
+                    sortedP.forEach(p => {
+                        occupied[`${day}_${p}`] = c;
+                        if (p !== start) {
+                            skipSlots[`${day}_${p}`] = true;
+                        }
+                    });
+                });
+            });
+
+            // 逐行绘制
+            periods.forEach(p => {
+                const tr = document.createElement('tr');
+                
+                // 节次头
+                const th = document.createElement('th');
+                th.innerHTML = `<span class="period-num">${p}</span><span class="period-time">${getPeriodTimeRange(p)}</span>`;
+                tr.appendChild(th);
+                
+                dayCols.forEach(d => {
+                    const cellKey = `${d}_${p}`;
+                    if (skipSlots[cellKey]) return; // 被上一行的 rowspan 覆盖，跳过渲染
+                    
+                    const td = document.createElement('td');
+                    td.id = `cell-${cellKey}`;
+                    
+                    const startInfo = startSlots[cellKey];
+                    if (startInfo) {
+                        td.rowSpan = startInfo.length;
+                        td.className = 'timetable-course-cell';
+                        td.style.setProperty('--cell-color', getCourseColor(startInfo.course.code));
+                        td.style.borderLeft = `4px solid ${getCourseBorderColor(startInfo.course.code)}`;
+                        td.innerHTML = `
+                            <div class="table-c-name">${escapeHtml(startInfo.course.name)}</div>
+                            <div class="table-c-venue">📍 ${escapeHtml(startInfo.course.venue)}</div>
+                            <div class="table-c-code">${escapeHtml(startInfo.course.code)}</div>
+                            <button class="table-c-withdraw" type="button" onclick="withdrawCourse('${startInfo.course.code}')" title="退选该课程">×</button>
+                        `;
+                    } else {
+                        td.className = 'timetable-empty-cell';
+                        td.innerText = '';
+                    }
+                    tr.appendChild(td);
+                });
+                gridBody.appendChild(tr);
+            });
+        }
+
+        // 3. 课程颜色生成器 (一致且美观)
+        const courseColors = {};
+        const colors = [
+            { bg: 'rgba(96, 205, 255, 0.18)', border: '#60cdff' }, // HSL Tailored
+            { bg: 'rgba(16, 185, 129, 0.15)', border: '#34d399' },
+            { bg: 'rgba(245, 158, 11, 0.15)', border: '#f59e0b' },
+            { bg: 'rgba(139, 92, 246, 0.15)', border: '#a78bfa' },
+            { bg: 'rgba(236, 72, 153, 0.15)', border: '#f472b6' },
+            { bg: 'rgba(14, 165, 233, 0.15)', border: '#38bdf8' },
+            { bg: 'rgba(168, 85, 247, 0.15)', border: '#c084fc' }
+        ];
+
+        function getCourseColor(code) {
+            resolveColors(code);
+            return courseColors[code].bg;
+        }
+        function getCourseBorderColor(code) {
+            resolveColors(code);
+            return courseColors[code].border;
+        }
+        function resolveColors(code) {
+            if (!courseColors[code]) {
+                const idx = Object.keys(courseColors).length % colors.length;
+                courseColors[code] = colors[idx];
+            }
+        }
+
+        // 4. 选课行为与学分校验
+        window.electCourse = function(code) {
+            const course = coursesDatabase.find(c => c.code === code);
+            if (!course) return;
+
+            // A. 学分溢出判断
+            const currentCredits = electedCourses.reduce((sum, c) => sum + c.credits, 0);
+            if (currentCredits + course.credits > CREDIT_LIMIT) {
+                alert(`⚠️ 选课失败: 学分超限！当前学期学分上限为 ${CREDIT_LIMIT} 学分。你目前已选 ${currentCredits} 学分，无法添加本门课 (${course.credits} 学分)。`);
+                return;
+            }
+
+            // B. 冲突判断
+            const conflict = checkConflict(course);
+            if (conflict) {
+                alert(`⚠️ 选课冲突: 该课程时间与已选课程 [${conflict.name}] 重合！`);
+                return;
+            }
+
+            // C. 确认加选
+            electedCourses.push(course);
+            updateElectedSummaryAndBar();
+            renderTimetable();
+            renderElectedListTable();
+            applySmartFilters();
+            updateRequiredChecklist();
+        };
+
+        // 5. 退课行为
+        window.withdrawCourse = function(code) {
+            electedCourses = electedCourses.filter(c => c.code !== code);
+            updateElectedSummaryAndBar();
+            renderTimetable();
+            renderElectedListTable();
+            applySmartFilters();
+            updateRequiredChecklist();
+        };
+
+        // 6. 冲突计算引擎
+        function checkConflict(targetCourse) {
+            let conflictFound = null;
+            
+            targetCourse.schedule.forEach(targetSlot => {
+                electedCourses.forEach(elected => {
+                    elected.schedule.forEach(electedSlot => {
+                        if (targetSlot.day === electedSlot.day) {
+                            // 求交集
+                            const hasOverlap = targetSlot.periods.some(p => electedSlot.periods.includes(p));
+                            if (hasOverlap) {
+                                conflictFound = elected;
+                            }
+                        }
+                    });
+                });
+            });
+            
+            return conflictFound;
+        }
+
+        // 7. 更新顶部与侧边栏的学分进度条
+        function updateElectedSummaryAndBar() {
+            const sumCredits = electedCourses.reduce((sum, c) => sum + c.credits, 0);
+            
+            // 侧栏进度文本
+            document.getElementById('credits-fraction').innerText = `${sumCredits.toFixed(1)} / ${CREDIT_LIMIT.toFixed(1)}`;
+            
+            // 进度条宽度
+            const pct = Math.min((sumCredits / CREDIT_LIMIT) * 100, 100);
+            document.getElementById('credits-bar-fill').style.width = `${pct}%`;
+
+            // 顶部 banner 汇总
+            document.getElementById('elect-header-summary').innerHTML = `
+                已排 <strong>${electedCourses.length}</strong> 门课程，共计 <strong>${sumCredits.toFixed(1)}</strong> 学分
+            `;
+        }
+
+        // 8. 绘制已选列表表格
+        function renderElectedListTable() {
+            const tbody = document.getElementById('elected-courses-table-body');
+            tbody.innerHTML = '';
+            
+            if (electedCourses.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">暂未选定或排入任何课程。请在下方进行课程检索并加入。</td></tr>';
+                return;
+            }
+
+            electedCourses.forEach((c, idx) => {
+                const tr = document.createElement('tr');
+                const catClass = getCategoryClass(c.category);
+                
+                const schedStr = formatSchedule(c.schedule);
+                
+                tr.innerHTML = `
+                    <td style="font-family:monospace;">${1001 + idx}</td>
+                    <td style="font-family:monospace; font-weight:600; color:var(--accent-color);">${escapeHtml(c.code)}</td>
+                    <td style="font-weight:600;">${escapeHtml(c.name)}</td>
+                    <td><span class="c-tag ${catClass}">${escapeHtml(c.category)}</span></td>
+                    <td style="font-family:'Outfit'; font-weight:600;">${c.credits.toFixed(1)}</td>
+                    <td>${escapeHtml(c.teachers.join(', '))}</td>
+                    <td>📍 ${escapeHtml(c.venue)} (${schedStr})</td>
+                    <td>
+                        <button class="btn-withdraw" type="button" onclick="withdrawCourse('${c.code}')">退选</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Helper: 格式化时间槽文字 (e.g. 周三 3-4节)
+        function formatSchedule(schedule) {
+            const dayNames = { 1: "周一", 2: "周二", 3: "周三", 4: "周四", 5: "周五" };
+            return schedule.map(slot => {
+                const sorted = [...slot.periods].sort((a,b) => a-b);
+                const first = sorted[0];
+                const last = sorted[sorted.length - 1];
+                return `${dayNames[slot.day]} ${first}-${last}节`;
+            }).join(', ');
+        }
+
+        function getCategoryClass(cat) {
+            if (cat === "专业必修") return "compulsory";
+            if (cat === "专业选修") return "elective";
+            if (cat === "通识必修") return "general-c";
+            if (cat === "通识选修") return "general-e";
+            if (cat === "体育课程") return "pe";
+            if (cat === "研究生课程") return "grad";
+            return "other";
+        }
+
+        // =========================================================
+        // 智能检索区渲染与交互 (Smart Search engine)
+        // =========================================================
+        
+        // 绑定检索控件事件
+        function setupEventListeners() {
+            // 主题切换
+            document.getElementById('theme-toggle').addEventListener('click', () => {
+                const cur = document.body.getAttribute('data-theme');
+                setTheme(cur === 'dark' ? 'light' : 'dark');
+            });
+
+            // 智能选课搜索框
+            document.getElementById('smart-search-input').addEventListener('input', debounce(() => {
+                applySmartFilters();
+            }, 200));
+
+            // 下拉过滤与排序
+            document.getElementById('filter-category').addEventListener('change', applySmartFilters);
+            document.getElementById('filter-department').addEventListener('change', applySmartFilters);
+            document.getElementById('filter-credits').addEventListener('change', applySmartFilters);
+            document.getElementById('filter-sort').addEventListener('change', applySmartFilters);
+            
+            // 智能复选框切换
+            document.getElementById('toggle-conflict-free').addEventListener('change', applySmartFilters);
+            document.getElementById('toggle-easy-gpa').addEventListener('change', applySmartFilters);
+
+            // 重置按钮
+            document.getElementById('reset-smart-filters-btn').addEventListener('click', () => {
+                document.getElementById('smart-search-input').value = '';
+                document.getElementById('filter-category').value = 'ALL';
+                document.getElementById('filter-department').value = 'ALL';
+                document.getElementById('filter-credits').value = 'ALL';
+                document.getElementById('filter-sort').value = 'gpa-desc';
+                document.getElementById('toggle-conflict-free').checked = false;
+                document.getElementById('toggle-easy-gpa').checked = false;
+                applySmartFilters();
+            });
+
+            // 数据更新指南 modal
+            const guideBtn = document.getElementById('nav-guide-btn');
+            const guideModal = document.getElementById('guide-modal');
+            const guideClose = document.getElementById('guide-modal-close');
+
+            guideBtn.addEventListener('click', () => guideModal.classList.add('active'));
+            guideClose.addEventListener('click', () => guideModal.classList.remove('active'));
+            guideModal.addEventListener('click', (e) => {
+                if (e.target === guideModal) guideModal.classList.remove('active');
+            });
+
+            // 画像名册搜索/排序事件
+            document.getElementById('ana-search-input').addEventListener('input', debounce(() => {
+                renderAnalyticsSidebar();
+            }, 200));
+            document.getElementById('ana-sort-select').addEventListener('change', renderAnalyticsSidebar);
+            
+            document.getElementById('ana-roster-search').addEventListener('input', debounce((e) => {
+                rosterFilterQuery = e.target.value;
+                renderRosterTable();
+            }, 200));
+
+            // 画像名册表头点击排序
+            const thList = document.querySelectorAll('#students-table th');
+            thList.forEach(th => {
+                th.addEventListener('click', () => {
+                    const field = th.getAttribute('data-field');
+                    if (!field) return;
+                    if (rosterSortField === field) {
+                        rosterSortOrder = rosterSortOrder === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        rosterSortField = field;
+                        rosterSortOrder = 'desc'; // 默认降序
+                    }
+                    renderRosterTable();
+                });
+            });
+        }
+
+        // 智能过滤执行核心
+        function applySmartFilters() {
+            if (coursesDatabase.length === 0) return;
+
+            const query = document.getElementById('smart-search-input').value.trim().toLowerCase();
+            const catFilter = document.getElementById('filter-category').value;
+            const deptFilter = document.getElementById('filter-department').value;
+            const creditFilter = document.getElementById('filter-credits').value;
+            
+            const showConflictFree = document.getElementById('toggle-conflict-free').checked;
+            const showEasyGpa = document.getElementById('toggle-easy-gpa').checked;
+            const sortMode = document.getElementById('filter-sort').value;
+
+            // 过滤流程
+            let filtered = coursesDatabase.filter(c => {
+                // 1. 文本搜索
+                if (query) {
+                    const matchText = (
+                        c.name.toLowerCase().includes(query) ||
+                        c.code.toLowerCase().includes(query) ||
+                        c.teachers.some(t => t.toLowerCase().includes(query)) ||
+                        c.department.toLowerCase().includes(query) ||
+                        c.venue.toLowerCase().includes(query)
+                    );
+                    if (!matchText) return false;
+                }
+
+                // 2. 类别
+                if (catFilter !== 'ALL' && c.category !== catFilter) return false;
+                
+                // 3. 学院院系
+                if (deptFilter !== 'ALL' && c.department !== deptFilter) return false;
+
+                // 4. 学分
+                if (creditFilter !== 'ALL') {
+                    const cred = parseInt(creditFilter);
+                    if (Math.round(c.credits) !== cred) return false;
+                }
+
+                // 5. 仅无冲突课程智能过滤
+                if (showConflictFree) {
+                    const hasConflict = checkConflict(c) || electedCourses.some(el => el.code === c.code);
+                    if (hasConflict) return false;
+                }
+
+                // 6. 给分好课过滤 (历史平均绩点平均给分 >= 3.3)
+                if (showEasyGpa) {
+                    if (!c.stats || c.stats.avg_mark === null || c.stats.avg_mark < 3.3) return false;
+                }
+
+                return true;
+            });
+
+            // 排序流程
+            filtered.sort((a, b) => {
+                if (sortMode === 'gpa-desc') {
+                    const gpaA = a.stats.avg_mark !== null ? a.stats.avg_mark : -1;
+                    const gpaB = b.stats.avg_mark !== null ? b.stats.avg_mark : -1;
+                    return gpaB - gpaA;
+                }
+                if (sortMode === 'gpa-asc') {
+                    const gpaA = a.stats.avg_mark !== null ? a.stats.avg_mark : 99;
+                    const gpaB = b.stats.avg_mark !== null ? b.stats.avg_mark : 99;
+                    return gpaA - gpaB;
+                }
+                if (sortMode === 'enroll-desc') {
+                    const enA = a.stats.enrollments || 0;
+                    const enB = b.stats.enrollments || 0;
+                    return enB - enA;
+                }
+                if (sortMode === 'code-asc') {
+                    return a.code.localeCompare(b.code);
+                }
+                if (sortMode === 'credits-desc') {
+                    return b.credits - a.credits;
+                }
+                return 0;
+            });
+
+            // 限制渲染条数 (防止过多渲染卡顿，分页限制展示前 40 条最符合逻辑的课程)
+            const sliceLimit = 40;
+            const displayList = filtered.slice(0, sliceLimit);
+
+            document.getElementById('smart-matched-count').innerText = filtered.length;
+            
+            renderSmartCourseCards(displayList);
+        }
+
+        // 绘制检索课程卡片列表
+        function renderSmartCourseCards(courses) {
+            const container = document.getElementById('smart-search-results-container');
+            container.innerHTML = '';
+
+            if (courses.length === 0) {
+                container.innerHTML = '<div class="search-card-empty">❌ 未检索到符合当前筛选条件的课程</div>';
+                return;
+            }
+
+            courses.forEach(c => {
+                const card = document.createElement('div');
+                card.className = 'course-elect-card';
+                
+                // 判断状态
+                const isSelected = electedCourses.some(el => el.code === c.code);
+                const conflictCourse = checkConflict(c);
+                const currentCredits = electedCourses.reduce((sum, el) => sum + el.credits, 0);
+                const isLimitExceeded = !isSelected && (currentCredits + c.credits > CREDIT_LIMIT);
+                
+                const catClass = getCategoryClass(c.category);
+                const schedStr = formatSchedule(c.schedule);
+                
+                // 绩点样式高亮
+                const gpaVal = c.stats.avg_mark !== null ? c.stats.avg_mark.toFixed(3) : '无统计';
+                const isHighGpa = c.stats.avg_mark !== null && c.stats.avg_mark >= 3.4;
+                const gpaClass = isHighGpa ? 'card-gpa-stat-val high' : 'card-gpa-stat-val';
+                
+                // 按钮状态与类
+                let btnText = "加入课程表";
+                let btnDisabled = false;
+                let btnClass = "btn-elect";
+                
+                if (isSelected) {
+                    btnText = "✓ 已在课表中";
+                    btnClass += " elected";
+                } else if (conflictCourse) {
+                    btnText = "时间冲突";
+                    btnDisabled = true;
+                    btnClass += " conflict";
+                } else if (isLimitExceeded) {
+                    btnText = "超学分上限 (>7)";
+                    btnDisabled = true;
+                }
+
+                // 计算给分分布 mini 棒状图
+                const distHtml = buildMiniDistChart(c.stats.distribution || {});
+
+                card.innerHTML = `
+                    <div class="course-elect-card-header">
+                        <div>
+                            <span class="c-tag ${catClass}">${escapeHtml(c.category)}</span>
+                            <h4 class="course-elect-title" style="margin-top:0.3rem;">${escapeHtml(c.name)}</h4>
+                            <div class="course-elect-code">${escapeHtml(c.code)} | ${c.credits.toFixed(1)} 学分</div>
+                        </div>
+                    </div>
+
+                    <div class="course-elect-info-row">
+                        <div class="course-elect-info-item">👨‍🏫 ${escapeHtml(c.teachers.join(', '))}</div>
+                        <div class="course-elect-info-item">📍 ${escapeHtml(c.venue)}</div>
+                        <div class="course-elect-info-item" style="color:var(--accent-color);">🕒 ${schedStr}</div>
+                    </div>
+
+                    <!-- GPA stats -->
+                    <div class="card-gpa-badge-row">
+                        <div class="card-gpa-stat">
+                            <span class="card-gpa-stat-lbl">给分均绩 (GPA)</span>
+                            <span class="${gpaClass}">${gpaVal}</span>
+                        </div>
+                        <div class="card-gpa-stat">
+                            <span class="card-gpa-stat-lbl">修读画像样本</span>
+                            <span class="card-gpa-stat-val">${c.stats.enrollments || 0} 人</span>
+                        </div>
+                        <div class="card-gpa-stat">
+                            <span class="card-gpa-stat-lbl">学生均绩 (Compet.)</span>
+                            <span class="card-gpa-stat-val">${c.stats.avg_student_gpa !== null ? c.stats.avg_student_gpa.toFixed(3) : '-'}</span>
+                        </div>
+                    </div>
+
+                    <!-- Mini Distribution -->
+                    ${distHtml}
+
+                    <div style="margin-top:auto; display:flex; flex-direction:column; gap:0.4rem;">
+                        <button class="${btnClass}" type="button" ${btnDisabled ? 'disabled' : ''} onclick="event.stopPropagation(); isElected('${c.code}') ? withdrawCourse('${c.code}') : electCourse('${c.code}')">
+                            ${isSelected ? '退选课程' : btnText}
+                        </button>
+                        ${conflictCourse ? `<div class="conflict-desc-banner">⚠️ 与已选课程 [${escapeHtml(conflictCourse.name)}] 时间冲突</div>` : ''}
+                    </div>
+                `;
+
+                // 悬停预览课表绑定
+                card.addEventListener('mouseenter', () => handleCourseHoverPreview(c, true));
+                card.addEventListener('mouseleave', () => handleCourseHoverPreview(c, false));
+                
+                // 点击卡片穿透调起 GPA Analytics 画像
+                card.addEventListener('click', () => {
+                    const tabAnalyticsBtn = document.getElementById('tab-analytics-btn');
+                    tabAnalyticsBtn.click();
+                    selectAnalyticsCourse(c.code);
+                });
+
+                container.appendChild(card);
+            });
+        }
+
+        window.isElected = function(code) {
+            return electedCourses.some(el => el.code === code);
+        };
+
+        // 构造卡片内部 mini 占比条
+        function buildMiniDistChart(dist) {
+            const keys = ["4.0", "3.7", "3.3", "3.0", "2.7", "2.3", "2.0", "1.7", "1.3", "1.0", "0.0"];
+            
+            // 归一化总和
+            let total = 0;
+            keys.forEach(k => total += (dist[k] || 0));
+            
+            if (total === 0) {
+                return `
+                    <div class="card-dist-mini">
+                        <div class="card-dist-mini-title"><span>历史给分等级分布</span><span>样本不足</span></div>
+                        <div class="card-dist-mini-bars"><div style="width:100%; background-color:rgba(255,255,255,0.02)"></div></div>
+                    </div>
+                `;
+            }
+
+            // 配色分配
+            const gradeColors = {
+                "4.0": "#107c41", "3.7": "#2ca864", "3.3": "#6cbe45", "3.0": "#ffb900",
+                "2.7": "#ff8c00", "2.3": "#d83b01", "2.0": "#e81123", "1.7": "#b4009e",
+                "1.3": "#822d8c", "1.0": "#a80000", "0.0": "#ff4343"
+            };
+
+            let barSegments = '';
+            keys.forEach(k => {
+                const count = dist[k] || 0;
+                if (count === 0) return;
+                const pct = (count / total) * 100;
+                barSegments += `
+                    <div class="card-dist-mini-bar-segment" 
+                         style="width: ${pct}%; background-color: ${gradeColors[k]}" 
+                         data-tooltip="成绩 ${k} : 占比 ${pct.toFixed(1)}% (${count}人)">
+                    </div>
+                `;
+            });
+
+            return `
+                <div class="card-dist-mini">
+                    <div class="card-dist-mini-title">
+                        <span>历史给分段占比图 (A级 ➔ F级)</span>
+                        <span style="color:var(--text-secondary)">滑动查看悬浮统计</span>
+                    </div>
+                    <div class="card-dist-mini-bars">
+                        ${barSegments}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 悬浮在课程卡片上在日历课表上进行虚线边框 preview 绘制
+        function handleCourseHoverPreview(course, isEnter) {
+            // 清理旧状态
+            const cells = document.querySelectorAll('.timetable-grid td');
+            cells.forEach(c => {
+                c.classList.remove('preview-slot');
+                c.classList.remove('preview-conflict');
+            });
+
+            if (!isEnter) return;
+
+            // 绘制新状态
+            course.schedule.forEach(slot => {
+                const day = slot.day;
+                slot.periods.forEach(p => {
+                    const td = document.getElementById(`cell-${day}_${p}`);
+                    if (!td) return; // 可能是被合并的子节次单元格，或者空
+                    
+                    if (td.classList.contains('timetable-course-cell')) {
+                        // 该节次已经被占用了，预览冲突
+                        td.classList.add('preview-conflict');
+                    } else {
+                        // 空白单元格，预览排入
+                        td.classList.add('preview-slot');
+                    }
+                });
+            });
+        }
+
+        // =========================================================
+        // 侧栏必修课对照 check-off
+        // =========================================================
+        function updateRequiredChecklist() {
+            const listContainer = document.getElementById('required-courses-list');
+            listContainer.innerHTML = '';
+            
+            let doneCount = 0;
+            
+            REQUIRED_COURSES_CHECKLIST.forEach(req => {
+                // 状态 check
+                // 1. 是否在已选 timetable 里
+                const isSelected = electedCourses.some(el => el.code === req.code);
+                
+                // 2. 是否历史已经修读完成通过了 (查李翰泽历史 scores)
+                let isCompleted = false;
+                if (isMasterDataLoaded) {
+                    const hanze = studentDetails["2024533061"]; // 预设当前学生是李翰泽
+                    if (hanze && hanze.scores) {
+                        try {
+                            const scoresObj = typeof hanze.scores === 'string' ? JSON.parse(hanze.scores) : hanze.scores;
+                            (scoresObj.scoreArray || []).forEach(sem => {
+                                (sem.value || []).forEach(c => {
+                                    // 检查代码匹配且通过
+                                    if ((c.value?.code === req.code || c.name === req.name) && (c.value?.isPass === "1" || parseFloat(c.value?.mark) >= 1.0)) {
+                                        isCompleted = true;
+                                    }
+                                });
+                            });
+                        } catch(e){}
+                    }
+                }
+
+                let checkClass = "required-checkbox";
+                let statusText = "待选";
+                let statusClass = "required-status-badge";
+                
+                if (isCompleted) {
+                    checkClass += " done";
+                    statusText = "已修";
+                    statusClass += " done";
+                    doneCount++;
+                } else if (isSelected) {
+                    checkClass += " selected";
+                    statusText = "已选";
+                    statusClass += " selected";
+                }
+
+                const checkSymbol = isCompleted ? "✓" : (isSelected ? "+" : "");
+
+                const div = document.createElement('div');
+                div.className = 'required-course-item';
+                div.innerHTML = `
+                    <div class="required-course-info">
+                        <span class="${checkClass}">${checkSymbol}</span>
+                        <span>${escapeHtml(req.name)}</span>
+                        <span style="color:var(--text-muted); font-size:0.65rem; font-family:monospace;">${escapeHtml(req.code)}</span>
+                    </div>
+                    <span class="${statusClass}">${statusText}</span>
+                `;
+                listContainer.appendChild(div);
+            });
+
+            document.getElementById('required-count-fraction').innerText = `${doneCount} / ${REQUIRED_COURSES_CHECKLIST.length}`;
+        }
+
+        // =========================================================
+        // VIEW 2: 给分画像详情面板逻辑 (Analytics logic)
+        // =========================================================
+        
+        // 渲染画像左侧列表
+        function renderAnalyticsSidebar() {
+            const container = document.getElementById('ana-course-list');
+            container.innerHTML = '';
+            
+            if (coursesDatabase.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding:1.5rem; color:var(--text-muted);">载入中...</div>';
+                return;
+            }
+
+            const query = document.getElementById('ana-search-input').value.trim().toLowerCase();
+            const sortVal = document.getElementById('ana-sort-select').value;
+
+            // 过滤
+            let list = coursesDatabase.filter(c => {
+                if (query) {
+                    return c.name.toLowerCase().includes(query) || c.code.toLowerCase().includes(query);
+                }
+                return true;
+            });
+
+            // 排序
+            list.sort((a, b) => {
+                if (sortVal === 'count-desc') return (b.stats.enrollments || 0) - (a.stats.enrollments || 0);
+                if (sortVal === 'gpa-desc') return (b.stats.avg_mark || 0) - (a.stats.avg_mark || 0);
+                if (sortVal === 'code-asc') return a.code.localeCompare(b.code);
+                return 0;
+            });
+
+            list.forEach(c => {
+                const item = document.createElement('button');
+                item.className = 'course-card';
+                if (activeAnaCourse && activeAnaCourse.code === c.code) {
+                    item.classList.add('active');
+                }
+                item.type = 'button';
+                item.style.width = 'calc(100% - 10px)';
+                item.style.margin = '4px 5px';
+                
+                const gpaVal = c.stats.avg_mark !== null ? c.stats.avg_mark.toFixed(3) : '-';
+                
+                item.innerHTML = `
+                    <div class="course-card-header">
+                        <span class="course-card-title">${escapeHtml(c.name)}</span>
+                        <span class="course-card-code">${escapeHtml(c.code)}</span>
+                    </div>
+                    <div class="course-card-meta">
+                        <span style="font-size:0.72rem; color:var(--text-muted);">样本量: ${c.stats.enrollments || 0} 人</span>
+                        <span class="course-card-badge course-card-metric">给分绩点: ${gpaVal}</span>
+                    </div>
+                `;
+
+                item.addEventListener('click', () => {
+                    document.querySelectorAll('.analytics-sidebar .course-card').forEach(card => card.classList.remove('active'));
+                    item.classList.add('active');
+                    selectAnalyticsCourse(c.code);
+                });
+
+                container.appendChild(item);
+            });
+        }
+
+        // 选择画像课程详情
+        function selectAnalyticsCourse(code) {
+            const course = coursesDatabase.find(c => c.code === code);
+            if (!course) return;
+
+            activeAnaCourse = course;
+            
+            // 切换展示视图
+            document.getElementById('ana-welcome-view').style.display = 'none';
+            document.getElementById('ana-detail-view').style.display = 'flex';
+
+            // 渲染课程文字信息
+            const catBadge = document.getElementById('ana-course-cat-badge');
+            catBadge.className = `c-tag ${getCategoryClass(course.category)}`;
+            catBadge.innerText = course.category;
+            
+            document.getElementById('ana-course-name').innerText = course.name;
+            document.getElementById('ana-course-code').innerText = course.code;
+            document.getElementById('ana-course-dept').innerText = course.department;
+            document.getElementById('ana-course-credits').innerText = `${course.credits.toFixed(1)} 学分`;
+            
+            const gpaVal = course.stats.avg_mark !== null ? course.stats.avg_mark.toFixed(3) : '无统计';
+            document.getElementById('ana-course-gpa').innerText = gpaVal;
+
+            // Roster Table search reset
+            document.getElementById('ana-roster-search').value = '';
+            rosterFilterQuery = '';
+            
+            // 渲染画像列表与 Roster 名册
+            renderRosterTable();
+            renderCourseCharts(course.enrollments || []);
+        }
+
+        // 渲染具体的名册表
+        function renderRosterTable() {
+            const tbody = document.getElementById('students-table-body');
+            tbody.innerHTML = '';
+            
+            if (!isMasterDataLoaded) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--warning-color); padding: 1.5rem 0;">🔄 正在从本地画像库载入名册 (33MB)... 请稍候。</td></tr>';
+                return;
+            }
+
+            const enrolls = activeAnaCourse ? activeAnaCourse.enrollments || [] : [];
+            document.getElementById('roster-count-val').innerText = enrolls.length;
+
+            if (enrolls.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding: 1.5rem 0;">⚠️ 暂无选修该门课程的学生画像历史记录</td></tr>';
+                return;
+            }
+
+            // 模糊过滤名册
+            let filteredRoster = enrolls.filter(r => {
+                if (rosterFilterQuery) {
+                    return r.studentId.includes(rosterFilterQuery) || r.studentName.includes(rosterFilterQuery);
+                }
+                return true;
+            });
+
+            // 字段排序
+            filteredRoster.sort((a, b) => {
+                let valA = a[rosterSortField];
+                let valB = b[rosterSortField];
+
+                // 数值与字符排序兼容
+                if (rosterSortField === 'studentOverallGpa' || rosterSortField === 'mark') {
+                    const fltA = parseFloat(valA);
+                    const fltB = parseFloat(valB);
+                    valA = isNaN(fltA) ? -1 : fltA;
+                    valB = isNaN(fltB) ? -1 : fltB;
+                }
+
+                if (typeof valA === 'string') {
+                    return rosterSortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                } else {
+                    return rosterSortOrder === 'asc' ? valA - valB : valB - valA;
+                }
+            });
+
+            filteredRoster.forEach(r => {
+                const tr = document.createElement('tr');
+                const badgeClass = r.isPass ? 'pass' : 'fail';
+                const statusText = r.isPass ? '已通过' : '未通过/缺考';
+
+                tr.innerHTML = `
+                    <td style="font-weight: 500;">${escapeHtml(r.semester)}</td>
+                    <td style="font-family: monospace; font-size: 0.82rem;">${escapeHtml(r.studentId)}</td>
+                    <td>
+                        <button type="button" class="clickable-name" onclick="openStudentModal('${escapeHtml(r.studentId)}')">${escapeHtml(r.studentName)}</button>
+                    </td>
+                    <td style="font-family: 'Outfit', sans-serif; font-weight: 600; color: var(--text-secondary);">${escapeHtml(r.studentOverallGpa)}</td>
+                    <td style="font-family: 'Outfit', monospace; font-weight: 700; color: var(--accent-color);">${escapeHtml(r.mark)}</td>
+                    <td>
+                        <span class="pass-badge ${badgeClass}"></span>
+                        <span style="font-size:0.8rem; color:${r.isPass ? 'var(--text-secondary)' : 'var(--danger-color)'}">${statusText}</span>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // 刷新表头排序标记
+            updateTableHeaderIndicators();
+        }
+
+        // 更新排序指示器样式
+        function updateTableHeaderIndicators() {
+            const thList = document.querySelectorAll('#students-table th');
+            thList.forEach(th => {
+                const field = th.getAttribute('data-field');
+                let rawText = th.innerText.replace(/[↕▲▼]/g, '').trim();
+                if (field === rosterSortField) {
+                    th.innerText = `${rawText} ${rosterSortOrder === 'asc' ? '▲' : '▼'}`;
+                    th.style.color = 'var(--accent-color)';
+                } else {
+                    th.innerText = `${rawText} ↕`;
+                    th.style.color = 'var(--text-secondary)';
+                }
+            });
+        }
+
+        // =========================================================
+        // Chart.js 绘制双走势/直方图
+        // =========================================================
+        function getChartColors() {
+            const isLight = document.body.getAttribute('data-theme') === 'light';
+            return {
+                gridColor: isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)',
+                textColor: isLight ? '#202020' : '#cccccc'
+            };
+        }
+
+        function drawEmptyChartHint(elementId, text) {
+            const canvas = document.getElementById(elementId);
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const parent = canvas.parentElement;
+            
+            // 移除旧提示
+            const oldHint = parent.querySelector('.chart-hint');
+            if (oldHint) oldHint.remove();
+            
+            const hint = document.createElement('div');
+            hint.className = 'chart-hint';
+            hint.innerText = text;
+            parent.appendChild(hint);
+        }
+
+        function renderCourseCharts(enrollments) {
+            // 销毁旧实例
+            if (courseDistChartInstance) {
+                courseDistChartInstance.destroy();
+                courseDistChartInstance = null;
+            }
+            if (courseTrendChartInstance) {
+                courseTrendChartInstance.destroy();
+                courseTrendChartInstance = null;
+            }
+
+            const distCanvas = document.getElementById('courseDistributionChart');
+            const trendCanvas = document.getElementById('courseSemesterTrendChart');
+
+            // 清理旧提示
+            const hints = distCanvas.parentElement.querySelectorAll('.chart-hint');
+            hints.forEach(h => h.remove());
+            const hintsTrend = trendCanvas.parentElement.querySelectorAll('.chart-hint');
+            hintsTrend.forEach(h => h.remove());
+
+            if (!enrollments || enrollments.length === 0) {
+                drawEmptyChartHint('courseDistributionChart', '暂无可展示的给分分布数据');
+                drawEmptyChartHint('courseSemesterTrendChart', '暂无可展示的历史趋势数据');
+                return;
+            }
+
+            if (!window.Chart) {
+                drawEmptyChartHint('courseDistributionChart', 'Chart.js 未就绪');
+                drawEmptyChartHint('courseSemesterTrendChart', 'Chart.js 未就绪');
+                return;
+            }
+
+            const { gridColor, textColor } = getChartColors();
+
+            // 1. 直方图分布数据准备
+            const marksList = ["4.0", "3.7", "3.3", "3.0", "2.7", "2.3", "2.0", "1.7", "1.3", "1.0", "0.0", "通过"];
+            const distribution = {};
+            marksList.forEach(m => distribution[m] = 0);
+            let otherCount = 0;
+
+            enrollments.forEach(e => {
+                const mark = String(e.mark).trim();
+                let key = mark;
+                if (mark === "4") key = "4.0";
+                if (mark === "3") key = "3.0";
+                if (mark === "2") key = "2.0";
+                if (mark === "1") key = "1.0";
+                if (mark === "0") key = "0.0";
+
+                if (distribution[key] !== undefined) {
+                    distribution[key]++;
+                } else if (mark !== '-') {
+                    otherCount++;
+                }
+            });
+
+            const labels = [...marksList];
+            const dataCounts = labels.map(l => distribution[l]);
+            if (otherCount > 0) {
+                labels.push("其它/未记分");
+                dataCounts.push(otherCount);
+            }
+
+            // 绘制直方图 (Bar)
+            const ctxDist = distCanvas.getContext('2d');
+            courseDistChartInstance = new Chart(ctxDist, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '获得人数',
+                        data: dataCounts,
+                        backgroundColor: 'rgba(96, 205, 255, 0.75)',
+                        borderColor: '#60cdff',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'transparent' }, ticks: { color: textColor } },
+                        y: { grid: { color: gridColor }, ticks: { color: textColor, stepSize: 1 } }
+                    }
+                }
+            });
+
+            // 2. 折线图走势数据准备 (按学期分类)
+            const semesterGpas = {};
+            enrollments.forEach(e => {
+                const gp = parseFloat(e.mark);
+                if (!isNaN(gp)) {
+                    if (!semesterGpas[e.semester]) {
+                        semesterGpas[e.semester] = { total: 0.0, count: 0 };
+                    }
+                    semesterGpas[e.semester].total += gp;
+                    semesterGpas[e.semester].count++;
+                }
+            });
+
+            const sortedSemesters = Object.keys(semesterGpas).sort((a, b) => a.localeCompare(b));
+
+            if (sortedSemesters.length > 0) {
+                const trendData = sortedSemesters.map(sem => (semesterGpas[sem].total / semesterGpas[sem].count).toFixed(3));
+                const ctxTrend = trendCanvas.getContext('2d');
+                courseTrendChartInstance = new Chart(ctxTrend, {
+                    type: 'line',
+                    data: {
+                        labels: sortedSemesters,
+                        datasets: [{
+                            label: '学期均绩',
+                            data: trendData,
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            borderWidth: 2.5,
+                            fill: true,
+                            tension: 0.2,
+                            pointBackgroundColor: '#10b981',
+                            pointRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { color: 'transparent' }, ticks: { color: textColor } },
+                            y: { grid: { color: gridColor }, ticks: { color: textColor }, min: 1.0, max: 4.0 }
+                        }
+                    }
+                });
+            } else {
+                drawEmptyChartHint('courseSemesterTrendChart', '没有足够的多学期绩点均值以绘制走势图');
+            }
+        }
+
+        // =========================================================
+        // 学生名片 Modal 弹窗逻辑
+        // =========================================================
+        window.openStudentModal = function(studentId) {
+            const std = studentDetails[studentId];
+            if (!std) {
+                alert(`未预载完成学号为 ${studentId} 的学生画像数据。`);
+                return;
+            }
+
+            document.getElementById('modal-name').innerText = std.name || '未知';
+            
+            const genderBadge = document.getElementById('modal-gender-badge');
+            const genderVal = std.basic_sex || std.gender || '-';
+            genderBadge.innerText = genderVal;
+            genderBadge.className = `role-badge ${genderVal === '女' ? 'student' : 'staff'}`;
+
+            document.getElementById('modal-id').innerText = std.id || '-';
+            document.getElementById('modal-mobile').innerText = std.mobile_phone || '未登记手机号';
+            document.getElementById('modal-email').innerText = std.email || '暂无';
+            document.getElementById('modal-grade').innerText = std.basic_grade ? std.basic_grade + ' 级' : '-';
+            document.getElementById('modal-college').innerText = std.basic_college || std.department_full || '-';
+            document.getElementById('modal-specialty').innerText = std.basic_specialty || '-';
+            
+            let partyText = std.basic_partyMember || '-';
+            if (partyText === '1') partyText = '中共党员';
+            if (partyText === '0') partyText = '共青团员/群众';
+            document.getElementById('modal-party').innerText = partyText;
+
+            const img = document.getElementById('modal-photo');
+            const fallback = document.getElementById('modal-photo-fallback');
+
+            // 尝试加载本地 fig 照片
+            if (std.basic_photoUrl) {
+                const ext = std.basic_photoUrl.split('.').pop() || 'jpg';
+                const localSrc = `fig/${std.id}-${std.name}.${ext}`;
+                img.src = localSrc;
+                img.style.display = 'block';
+                fallback.style.display = 'none';
+
+                img.onerror = () => {
+                    img.style.display = 'none';
+                    fallback.style.display = 'flex';
+                    fallback.innerText = (std.name || '学').substring(0, 1);
+                };
+            } else {
+                img.style.display = 'none';
+                fallback.style.display = 'flex';
+                fallback.innerText = (std.name || '学').substring(0, 1);
+            }
+
+            const modal = document.getElementById('student-modal');
+            modal.classList.add('active');
+        };
+
+        window.closeStudentModal = function() {
+            const modal = document.getElementById('student-modal');
+            modal.classList.remove('active');
+        };
+
+        // 点击遮罩层关闭名片
+        document.getElementById('student-modal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('student-modal')) {
+                closeStudentModal();
+            }
+        });
+
+        // =========================================================
+        // 代码复制与防抖等工具
+        // =========================================================
+        window.copyCodeText = function(button) {
+            const pre = button.nextElementSibling;
+            const text = pre.innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                const old = button.innerText;
+                button.innerText = '已复制！';
+                button.style.backgroundColor = 'var(--success-color)';
+                button.style.color = '#fff';
+                setTimeout(() => {
+                    button.innerText = old;
+                    button.style.backgroundColor = '';
+                    button.style.color = '';
+                }, 1500);
+            });
+        };
+
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                const context = this;
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(context, args), wait);
+            };
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+    </script>
+</body>
+</html>
