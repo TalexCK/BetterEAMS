@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.23
+// @version      0.9.24
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.23";
+  const APP_VERSION = "0.9.24";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -110,6 +110,7 @@
   let activeCapture = null;
   let originalSearchResetTimer = null;
   let previewLessonId = "";
+  let hoveredTimetableBlock = null;
   let pinnedTimetableOverflowGroups = new Set();
   const pendingMutations = new Set();
 
@@ -1347,7 +1348,9 @@
     panel.addEventListener("mouseout", handleLessonPreviewLeave);
     panel.addEventListener("focusin", handleLessonPreviewEnter);
     panel.addEventListener("focusout", handleLessonPreviewLeave);
+    panel.addEventListener("mousemove", handleTimetableBlockHoverMove);
     panel.addEventListener("mouseleave", () => clearLessonPreview());
+    panel.addEventListener("mouseleave", clearHoveredTimetableBlock);
 
     panel.addEventListener("click", (event) => {
       const block = event.target.closest(".beams-time-course[data-day][data-start-unit][data-end-unit]");
@@ -1419,6 +1422,28 @@
     if (!card || !panel?.contains(card)) return;
     if (card.contains(event.relatedTarget)) return;
     clearLessonPreview(card.dataset.lessonId);
+  }
+
+  function handleTimetableBlockHoverMove(event) {
+    const block = event.target.closest?.(".beams-time-course[data-lesson-id]");
+    if (!block || !panel?.contains(block) || block.classList.contains("is-preview")) {
+      clearHoveredTimetableBlock();
+      return;
+    }
+    setHoveredTimetableBlock(block);
+  }
+
+  function setHoveredTimetableBlock(block) {
+    if (!block || hoveredTimetableBlock === block) return;
+    clearHoveredTimetableBlock();
+    hoveredTimetableBlock = block;
+    hoveredTimetableBlock.classList.add("is-hovered-direct");
+  }
+
+  function clearHoveredTimetableBlock() {
+    if (!hoveredTimetableBlock) return;
+    hoveredTimetableBlock.classList.remove("is-hovered-direct");
+    hoveredTimetableBlock = null;
   }
 
   function setLessonPreview(id) {
@@ -1686,6 +1711,7 @@
 
   function renderPlanTimetable(node) {
     if (!node) return;
+    clearHoveredTimetableBlock();
     const plan = activePlan();
     if (!plan) {
       node.hidden = true;
@@ -2292,6 +2318,7 @@
       <div
         class="beams-time-course ${preview ? "is-preview" : overlay ? "is-staged-overlay" : isAppliedLesson(item) ? "is-applied" : "is-staged"} ${compact ? "is-compact" : ""} ${block.isGroupMember ? "is-group-member" : ""}"
         style="top:${top}px;height:${height}px;left:${left};width:${width}"
+        data-lesson-id="${escapeHtml(item.id || "")}"
         data-day="${escapeHtml(String(block.day || 0))}"
         data-start-unit="${escapeHtml(String(block.startUnit || 0))}"
         data-end-unit="${escapeHtml(String(block.endUnit || 0))}"
@@ -5224,17 +5251,21 @@
       .beams-time-group:hover {
         z-index: 7;
       }
-      .beams-time-group:hover .beams-time-course.is-group-member {
+      .beams-time-group:hover .beams-time-course.is-group-member:not(.is-hovered-direct) {
         opacity: 0.46;
         filter: saturate(0.82);
       }
-      .beams-time-group:hover .beams-time-course.is-group-member:hover {
+      .beams-time-group:hover .beams-time-course.is-group-member.is-hovered-direct {
         opacity: 1;
         filter: none;
       }
-      .beams-time-course:hover {
+      .beams-time-course:hover,
+      .beams-time-course.is-hovered-direct {
         transform: translateY(-1px);
         box-shadow: 0 3px 10px rgba(15, 23, 42, 0.14);
+      }
+      .beams-time-course.is-hovered-direct {
+        z-index: 9;
       }
       .beams-time-course.is-compact {
         padding: 4px;
@@ -5267,7 +5298,7 @@
         box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
         opacity: 0;
         transform: translateX(6px) scale(0.985);
-        pointer-events: auto;
+        pointer-events: none;
         transition: opacity .12s ease, transform .12s ease;
       }
       .beams-time-course-pop.is-left {
@@ -5279,13 +5310,13 @@
         top: auto;
         bottom: -4px;
       }
-      .beams-time-course:hover .beams-time-course-pop,
+      .beams-time-course.is-hovered-direct .beams-time-course-pop,
       .beams-time-course:focus-within .beams-time-course-pop {
         opacity: 1;
         transform: translateX(0) scale(1);
       }
       .beams-time-course-pop.is-left,
-      .beams-time-course:hover .beams-time-course-pop.is-left,
+      .beams-time-course.is-hovered-direct .beams-time-course-pop.is-left,
       .beams-time-course:focus-within .beams-time-course-pop.is-left {
         transform-origin: right center;
       }
