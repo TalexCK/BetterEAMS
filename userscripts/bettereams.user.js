@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.11
+// @version      0.9.12
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.11";
+  const APP_VERSION = "0.9.12";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -1333,6 +1333,9 @@
         curriculumPlanError = "";
         refreshLessons();
       }
+      if (action === "pickSlot") {
+        toggleTimetableSlotFilter(button.dataset.day, button.dataset.period);
+      }
       if (action === "clear") clearFilters();
       if (action === "clearPlan") clearActivePlan();
       if (action === "applyPlan") applyActivePlanToEams();
@@ -1402,6 +1405,30 @@
       !activePlanLessonIds().has(item.id) &&
       Array.isArray(item.arrangeInfo) &&
       item.arrangeInfo.length);
+  }
+
+  function selectedTimetableSlot() {
+    const day = DAYS.includes(state.day) ? state.day : "";
+    const period = clampPeriodUnit(Number(state.period));
+    return day && period ? { day, period } : null;
+  }
+
+  function toggleTimetableSlotFilter(day, period) {
+    const nextDay = DAYS.includes(asText(day)) ? asText(day) : "";
+    const nextPeriod = clampPeriodUnit(Number(period));
+    if (!nextDay || !nextPeriod) return;
+
+    if (state.day === nextDay && Number(state.period) === nextPeriod) {
+      state.day = "";
+      state.period = "";
+    } else {
+      state.day = nextDay;
+      state.period = `${nextPeriod}`;
+    }
+
+    applyStateToControls();
+    render();
+    panel?.querySelector('[data-role="list"]')?.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function applyStateToControls() {
@@ -1602,8 +1629,19 @@
     const periodMarks = calendarPeriodMarks(metrics);
     const lineMarks = calendarLineMarks(metrics);
     const unscheduledHtml = unscheduledTimetableHtml(unscheduled);
+    const slotFilter = selectedTimetableSlot();
     const previewLabel = previewBlocks.length ? `
       <span class="beams-preview-label">预览：${escapeHtml(previewLesson.name || previewLesson.no || previewLesson.code || "课程")}</span>
+    ` : "";
+    const slotFilterLabel = slotFilter ? `
+      <button
+        type="button"
+        class="beams-slot-filter-chip"
+        data-action="pickSlot"
+        data-day="${escapeHtml(slotFilter.day)}"
+        data-period="${escapeHtml(slotFilter.period)}"
+        title="再次点击取消按这个时间点筛课"
+      >按课表筛选：${escapeHtml(slotFilter.day)} 第${escapeHtml(slotFilter.period)}节</button>
     ` : "";
 
     node.hidden = false;
@@ -1615,6 +1653,7 @@
         <span class="beams-calendar-legend"><b class="is-staged"></b>本地暂存</span>
         <span class="beams-calendar-legend"><b class="is-preview"></b>悬停预览</span>
         ${previewLabel}
+        ${slotFilterLabel}
       </div>
       ${unscheduledHtml}
       <div class="beams-calendar-scroll">
@@ -1632,9 +1671,29 @@
             <div class="beams-calendar-day-column" data-day="${escapeHtml(day)}">
               ${lineMarks.map((mark) => `<i class="beams-calendar-hour-line" style="top:${mark.top}px"></i>`).join("")}
               ${calendarBlocks.filter((block) => block.day === dayIndex + 1).map((block) => timetableBlockHtml(block, metrics)).join("")}
+              ${timetableCellLayerHtml(day, metrics, slotFilter)}
             </div>
           `).join("")}
         </div>
+      </div>
+    `;
+  }
+
+  function timetableCellLayerHtml(day, metrics, slotFilter) {
+    return `
+      <div class="beams-calendar-cell-layer" aria-hidden="true">
+        ${calendarPeriodMarks(metrics).map((mark) => `
+          <button
+            type="button"
+            class="beams-calendar-hit-cell ${slotFilter?.day === day && Number(slotFilter?.period) === mark.period ? "is-selected" : ""}"
+            data-action="pickSlot"
+            data-day="${escapeHtml(day)}"
+            data-period="${escapeHtml(mark.period)}"
+            style="top:${calendarUnitTopPx(mark.period, metrics)}px;height:${metrics.rowHeight}px"
+            title="${escapeHtml(`${day} 第${mark.period}节`)}"
+            aria-label="${escapeHtml(`${day}第${mark.period}节`)}"
+          ></button>
+        `).join("")}
       </div>
     `;
   }
@@ -4561,6 +4620,17 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+      .beams-slot-filter-chip {
+        height: 22px;
+        border: 1px solid rgba(15, 118, 110, 0.22);
+        border-radius: 999px;
+        padding: 0 8px;
+        background: rgba(15, 118, 110, 0.08);
+        color: #0f766e !important;
+        font-size: 11px;
+        line-height: 20px;
+        white-space: nowrap;
+      }
       .beams-calendar-scroll {
         min-height: 0;
         flex: 1 1 auto;
@@ -4620,6 +4690,7 @@
         background:
           linear-gradient(to right, rgba(216, 222, 232, 0.55) 0, transparent 1px),
           #fff;
+        overflow: hidden;
       }
       .beams-calendar-hour-line {
         position: absolute;
@@ -4628,6 +4699,36 @@
         height: 1px;
         background: #e5e7eb;
         pointer-events: none;
+      }
+      .beams-calendar-cell-layer {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+      }
+      .beams-calendar-hit-cell {
+        position: absolute;
+        left: 0;
+        right: 0;
+        margin: 0;
+        border: 0 !important;
+        border-radius: 0 !important;
+        padding: 0;
+        background: transparent !important;
+        color: transparent !important;
+        cursor: pointer;
+        box-shadow: none;
+      }
+      .beams-calendar-hit-cell:hover {
+        background: rgba(15, 118, 110, 0.08) !important;
+        box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.18);
+      }
+      .beams-calendar-hit-cell.is-selected {
+        background: rgba(15, 118, 110, 0.13) !important;
+        box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.26);
+      }
+      .beams-calendar-hit-cell.is-selected:hover {
+        background: rgba(15, 118, 110, 0.16) !important;
+        box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.32);
       }
       .beams-time-course {
         position: absolute;
