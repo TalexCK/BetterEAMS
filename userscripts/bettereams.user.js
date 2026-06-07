@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.13
+// @version      0.9.14
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.13";
+  const APP_VERSION = "0.9.14";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -2101,9 +2101,10 @@
     const isFavorite = favorites.has(item.id);
     const inPlan = activePlanLessonIds().has(item.id);
     const conflict = hasConflict(item);
+    const appliedConflicts = conflictingAppliedLessons(item);
     const sandboxConflict = inPlan && hasSandboxConflict(item);
     const planGap = hasCurriculumPlanGap(item);
-    const actionsHtml = courseActionHtml(item);
+    const actionsHtml = courseActionHtml(item, appliedConflicts);
     const tags = [
       item.category,
       item.dept,
@@ -2112,7 +2113,7 @@
     ].filter(Boolean);
 
     return `
-      <article class="beams-card ${isFavorite ? "is-favorite" : ""} ${inPlan ? "is-in-plan" : ""} ${conflict ? "has-conflict" : ""} ${sandboxConflict ? "has-sandbox-conflict" : ""} ${planGap ? "has-plan-gap" : ""}" data-lesson-id="${escapeHtml(item.id)}">
+      <article class="beams-card ${isFavorite ? "is-favorite" : ""} ${inPlan ? "is-in-plan" : ""} ${conflict ? "has-conflict" : ""} ${appliedConflicts.length ? "has-applied-conflict" : ""} ${sandboxConflict ? "has-sandbox-conflict" : ""} ${planGap ? "has-plan-gap" : ""}" data-lesson-id="${escapeHtml(item.id)}">
         <div class="beams-card-main">
           <div class="beams-credit" title="${escapeHtml(creditText(item))}">${creditHtml(item)}</div>
           <div class="beams-course">
@@ -2125,7 +2126,7 @@
           ${capacityHtml(item)}
         </div>
         <div class="beams-tags">${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>
-        ${statusBadgesHtml(item, inPlan)}
+        ${statusBadgesHtml(item, inPlan, appliedConflicts)}
         ${planBadgesHtml(item)}
         ${scheduleHtml(item)}
         ${item.preRequirement || item.remark || item.similarcourses || item.teachClassName ? `
@@ -2162,14 +2163,21 @@
     `;
   }
 
-  function statusBadgesHtml(item, inPlan = activePlanLessonIds().has(item.id)) {
+  function statusBadgesHtml(item, inPlan = activePlanLessonIds().has(item.id), appliedConflicts = conflictingAppliedLessons(item)) {
     const badges = [];
     if (item.elected || item.preElect) badges.push({ className: "is-applied", label: "已选" });
     if (inPlan && !isAppliedLesson(item)) badges.push({ className: "is-staged", label: "本地暂存" });
+    if (appliedConflicts.length) {
+      badges.push({
+        className: "is-time-conflict",
+        label: "与已选冲突",
+        title: `当前与以下已选课程时间冲突：${appliedConflicts.map((lesson) => `${lesson.no || lesson.code} ${lesson.name}`).join("；")}`
+      });
+    }
     if (!badges.length) return "";
     return `
       <div class="beams-status-badges">
-        ${badges.map((badge) => `<span class="${escapeHtml(badge.className)}">${escapeHtml(badge.label)}</span>`).join("")}
+        ${badges.map((badge) => `<span class="${escapeHtml(badge.className)}"${badge.title ? ` title="${escapeHtml(badge.title)}"` : ""}>${escapeHtml(badge.label)}</span>`).join("")}
       </div>
     `;
   }
@@ -2326,7 +2334,7 @@
     `;
   }
 
-  function courseActionHtml(item) {
+  function courseActionHtml(item, appliedConflicts = conflictingAppliedLessons(item)) {
     const actions = [];
     if (item.elected || item.preElect) {
       actions.push({
@@ -2341,8 +2349,10 @@
       actions.push({
         label: "选课",
         kind: "enroll",
-        className: "is-enroll",
-        title: "通过 EAMS 接口选课；若被规则拦截会显示 EAMS 返回原因"
+        className: `is-enroll${appliedConflicts.length ? " is-conflict-hint" : ""}`,
+        title: appliedConflicts.length ?
+          `当前与以下已选课程时间冲突，直接提交通常会被 EAMS 拒绝：${appliedConflicts.map((lesson) => `${lesson.no || lesson.code} ${lesson.name}`).join("；")}` :
+          "通过 EAMS 接口选课；若被规则拦截会显示 EAMS 返回原因"
       });
     }
     actions.push({
@@ -3868,6 +3878,17 @@
     return favoriteLessons.some((selected) => schedulesOverlap(item.arrangeInfo, selected.arrangeInfo));
   }
 
+  function conflictingAppliedLessons(item) {
+    if (!item || isAppliedLesson(item) || !Array.isArray(item.arrangeInfo) || !item.arrangeInfo.length) return [];
+    return lessons.filter((lesson) =>
+      lesson.id !== item.id &&
+      isAppliedLesson(lesson) &&
+      Array.isArray(lesson.arrangeInfo) &&
+      lesson.arrangeInfo.length &&
+      schedulesOverlap(item.arrangeInfo, lesson.arrangeInfo)
+    );
+  }
+
   function schedulesOverlap(aSlots, bSlots) {
     if (!Array.isArray(aSlots) || !Array.isArray(bSlots)) return false;
     for (const a of aSlots) {
@@ -4869,6 +4890,12 @@
       .beams-card.has-conflict:not(.is-favorite) {
         border-color: #f2b8b5;
       }
+      .beams-card.has-applied-conflict {
+        border-color: #f2b8b5;
+        outline: 1px solid rgba(180, 35, 24, 0.14);
+        outline-offset: -1px;
+        background: linear-gradient(0deg, rgba(254, 242, 242, 0.72), rgba(254, 242, 242, 0.72)), #fff;
+      }
       .beams-card.has-sandbox-conflict {
         border-color: #f2b8b5;
       }
@@ -5018,6 +5045,10 @@
         background: #e0f2fe;
         color: #0369a1;
       }
+      .beams-status-badges .is-time-conflict {
+        background: #fee2e2;
+        color: #b42318;
+      }
       .beams-schedule {
         display: flex;
         flex-direction: column;
@@ -5101,6 +5132,11 @@
         background: var(--beams-accent) !important;
         border-color: var(--beams-accent) !important;
         color: #fff !important;
+      }
+      .beams-origin-action.is-enroll.is-conflict-hint {
+        background: #fff1f2 !important;
+        border-color: #f2b8b5 !important;
+        color: #b42318 !important;
       }
       .beams-origin-action.is-drop {
         border-color: #f2b8b5 !important;
