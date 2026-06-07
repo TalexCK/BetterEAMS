@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.9
+// @version      0.9.10
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.9";
+  const APP_VERSION = "0.9.10";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -1583,12 +1583,7 @@
     const unscheduled = planLessons.filter((item) => !Array.isArray(item.arrangeInfo) || !item.arrangeInfo.length);
     const previewLesson = lessonById(previewLessonId);
     const previewBlocks = canPreviewLessonOnTimetable(previewLesson) ?
-      timetableBlocks([previewLesson]).map((block) => ({
-        ...block,
-        isPreview: true,
-        stackIndex: 0,
-        stackCount: 1
-      })) :
+      timetablePreviewBlocks(previewLesson) :
       [];
     if (!planLessons.length && !previewBlocks.length) {
       node.hidden = false;
@@ -1723,6 +1718,44 @@
       }
     }
     return mergedBlocks;
+  }
+
+  function timetablePreviewBlocks(item) {
+    const byDay = new Map();
+    for (const slot of item.arrangeInfo || []) {
+      const day = Number(slot.weekDay);
+      const unitRange = slotUnitRange(slot);
+      if (!day || day < 1 || day > 7 || !unitRange) continue;
+      const bucket = byDay.get(day) || { day, ranges: [], slots: [] };
+      bucket.ranges.push(unitRange);
+      bucket.slots.push(slot);
+      byDay.set(day, bucket);
+    }
+
+    const blocks = [];
+    for (const bucket of byDay.values()) {
+      for (const [startUnit, endUnit] of mergeUnitRanges(bucket.ranges)) {
+        const range = slotMinuteRangeFromUnits([startUnit, endUnit]);
+        if (!range) continue;
+        const dayName = DAYS[bucket.day] || "";
+        blocks.push({
+          item,
+          slot: bucket.slots[0] || {},
+          slots: bucket.slots,
+          day: bucket.day,
+          startMinute: range[0],
+          endMinute: range[1],
+          startUnit,
+          endUnit,
+          isPreview: true,
+          stackIndex: 0,
+          stackCount: 1,
+          previewTitle: `${dayName} ${formatUnitRanges([[startUnit, endUnit]])}节`,
+          previewRoomText: "覆盖节次"
+        });
+      }
+    }
+    return blocks.sort((a, b) => a.day - b.day || a.startUnit - b.startUnit || a.endUnit - b.endUnit);
   }
 
   function mergeContinuousTimetableBlocks(blocks) {
@@ -1882,9 +1915,9 @@
     const width = preview ? "calc(100% - 6px)" : `calc(${laneWidth}% - 6px)`;
     const status = preview ? "预览" : isAppliedLesson(item) ? "已选" : "暂存";
     const timeText = formatMinuteRange(block.startMinute, block.endMinute) || formatTimeRange(slot.startTime, slot.endTime);
-    const roomText = blockRoomsText(block) || "地点未标明";
-    const weeksText = asText(slot.weekStateDigest);
-    const title = (block.slots || [slot]).map(scheduleSlotLine).filter(Boolean).join("；");
+    const roomText = block.previewRoomText || blockRoomsText(block) || "地点未标明";
+    const weeksText = preview ? "" : asText(slot.weekStateDigest);
+    const title = block.previewTitle || uniqueValues((block.slots || [slot]).map(scheduleSlotLine).filter(Boolean)).join("；");
     return `
       <div
         class="beams-time-course ${preview ? "is-preview" : isAppliedLesson(item) ? "is-applied" : "is-staged"} ${stacked ? "has-stack" : ""}"
