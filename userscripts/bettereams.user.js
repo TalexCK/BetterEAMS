@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.21
+// @version      0.9.22
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.21";
+  const APP_VERSION = "0.9.22";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -1733,7 +1733,9 @@
     if (stagedScheduled.length) summaryParts.push(showStaged ? `${stagedScheduled.length} 门暂存已叠加` : `${stagedScheduled.length} 门暂存已隐藏`);
     if (visibleUnscheduled.length) summaryParts.push(`${visibleUnscheduled.length} 门未排时间`);
     const previewLabel = `
-      <span class="beams-preview-label ${previewBlocks.length ? "" : "is-empty"}">${previewBlocks.length ? `预览：${escapeHtml(previewLesson.name || previewLesson.no || previewLesson.code || "课程")}` : "预览占位"}</span>
+      <span class="beams-preview-row">
+        <span class="beams-preview-label ${previewBlocks.length ? "" : "is-empty"}">${previewBlocks.length ? `预览：${escapeHtml(previewLesson.name || previewLesson.no || previewLesson.code || "课程")}` : "预览占位"}</span>
+      </span>
     `;
     const stagedHint = !showStaged && (stagedScheduled.length || stagedUnscheduled.length) ? `
       <span class="beams-staged-hint">还有 ${escapeHtml(String(stagedScheduled.length + stagedUnscheduled.length))} 门暂存未显示</span>
@@ -4960,6 +4962,13 @@
         margin-bottom: 6px;
         min-height: 22px;
       }
+      .beams-preview-row {
+        flex: 0 0 100%;
+        display: flex;
+        align-items: center;
+        min-height: 18px;
+        overflow: hidden;
+      }
       .beams-timetable-head strong {
         font-size: 13px;
       }
@@ -5024,9 +5033,6 @@
       }
       .beams-preview-label.is-empty {
         visibility: hidden;
-        max-width: 0;
-        padding-left: 0;
-        padding-right: 0;
       }
       .beams-calendar-scroll {
         min-height: 0;
