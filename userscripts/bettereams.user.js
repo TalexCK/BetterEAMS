@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.17
+// @version      0.9.18
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.17";
+  const APP_VERSION = "0.9.18";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -2124,7 +2124,7 @@
       if (state.availability === "available" && !(item.available !== null && item.available > 0)) continue;
       if (state.availability === "full" && !(item.available !== null && item.available <= 0)) continue;
       if (state.availability === "unknown" && item.available !== null) continue;
-      if (state.hideConflict && hasConflict(item)) continue;
+      if (state.hideConflict && hasVisibleConflict(item)) continue;
       if (state.onlyPlanGaps && !hasCurriculumPlanGap(item)) continue;
       if (tokens.length && !tokens.every((token) => lessonMatchesQueryToken(item, token))) continue;
       item.__score = scoreLesson(item, tokens);
@@ -3956,6 +3956,14 @@
     if (!favorites.size || favorites.has(item.id)) return false;
     const favoriteLessons = lessons.filter((lesson) => favorites.has(lesson.id));
     return favoriteLessons.some((selected) => schedulesOverlap(item.arrangeInfo, selected.arrangeInfo));
+  }
+
+  function hasVisibleConflict(item) {
+    if (!item) return false;
+    if (hasConflict(item)) return true;
+    if (conflictingAppliedLessons(item).length) return true;
+    if (activePlanLessonIds().has(item.id) && hasSandboxConflict(item)) return true;
+    return false;
   }
 
   function conflictingAppliedLessons(item) {
