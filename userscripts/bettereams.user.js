@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.15
+// @version      0.9.16
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.15";
+  const APP_VERSION = "0.9.16";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -2098,6 +2098,7 @@
   }
 
   function cardHtml(item) {
+    const applied = isAppliedLesson(item);
     const isFavorite = favorites.has(item.id);
     const inPlan = activePlanLessonIds().has(item.id);
     const conflict = hasConflict(item);
@@ -2113,7 +2114,7 @@
     ].filter(Boolean);
 
     return `
-      <article class="beams-card ${isFavorite ? "is-favorite" : ""} ${inPlan ? "is-in-plan" : ""} ${conflict ? "has-conflict" : ""} ${appliedConflicts.length ? "has-applied-conflict" : ""} ${sandboxConflict ? "has-sandbox-conflict" : ""} ${planGap ? "has-plan-gap" : ""}" data-lesson-id="${escapeHtml(item.id)}">
+      <article class="beams-card ${isFavorite ? "is-favorite" : ""} ${applied ? "is-applied-card" : ""} ${inPlan && !applied ? "is-in-plan" : ""} ${conflict ? "has-conflict" : ""} ${appliedConflicts.length ? "has-applied-conflict" : ""} ${sandboxConflict ? "has-sandbox-conflict" : ""} ${planGap ? "has-plan-gap" : ""}" data-lesson-id="${escapeHtml(item.id)}">
         <div class="beams-card-main">
           <div class="beams-credit" title="${escapeHtml(creditText(item))}">${creditHtml(item)}</div>
           <div class="beams-course">
@@ -2140,7 +2141,7 @@
         ` : ""}
         <div class="beams-actions">
           ${actionsHtml}
-          <button type="button" class="beams-plan-toggle ${inPlan ? "is-active" : ""}" data-action="planToggle" title="${isAppliedLesson(item) ? "已选；如需移除请退课" : inPlan ? "从工作区暂存移除" : "加入当前工作区"}">${isAppliedLesson(item) ? "已选" : inPlan ? "已暂存" : "加暂存"}</button>
+          <button type="button" class="beams-plan-toggle ${applied ? "is-applied" : inPlan ? "is-active" : ""}" data-action="planToggle" title="${applied ? "已选；如需移除请退课" : inPlan ? "从工作区暂存移除" : "加入当前工作区"}">${applied ? "已选" : inPlan ? "已暂存" : "加暂存"}</button>
           ${conflict ? '<span class="beams-warning">与收藏课程冲突</span>' : ""}
           ${sandboxConflict ? '<span class="beams-warning">工作区冲突</span>' : ""}
           <button type="button" class="beams-star" data-action="favorite" title="${isFavorite ? "取消收藏" : "收藏"}" aria-label="${isFavorite ? "取消收藏" : "收藏"}">${isFavorite ? "★" : "☆"}</button>
@@ -4889,6 +4890,9 @@
         border-color: var(--beams-accent);
         background: linear-gradient(0deg, var(--beams-accent-soft), var(--beams-accent-soft)), #fff;
       }
+      .beams-card.is-applied-card {
+        box-shadow: inset 3px 0 0 #059669;
+      }
       .beams-card.is-in-plan {
         box-shadow: inset 3px 0 0 #0284c7;
       }
@@ -5155,6 +5159,11 @@
         border-color: #0284c7 !important;
         color: #0369a1 !important;
         background: #e0f2fe !important;
+      }
+      .beams-plan-toggle.is-applied {
+        border-color: #86efac !important;
+        color: #047857 !important;
+        background: #dcfce7 !important;
       }
       .beams-warning {
         color: var(--beams-danger);
