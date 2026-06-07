@@ -21,7 +21,3 @@ The script only runs on EAMS course election entry pages:
 - `stdElectCourse.action`
 
 It intentionally does not inject into syllabus/detail pages.
-
-## Repository
-
-This repository contains only the BetterEAMS userscript and minimal project metadata. The previous standalone course analytics page, crawler scripts, and generated datasets have been removed.
