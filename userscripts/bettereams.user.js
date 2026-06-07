@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
-// @namespace    https://github.com/Maotechh/BetterEAMS
-// @version      0.9.7
+// @namespace    https://github.com/henryli/bettereams
+// @version      0.9.8
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.7";
+  const APP_VERSION = "0.9.8";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
