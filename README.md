@@ -1,7 +1,7 @@
 # BetterEAMS
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/115930e7-1f5c-48a8-9c4d-85faa458dee4" width="650" />
+  <img src="https://github.com/user-attachments/assets/9333471a-e17a-41db-93d0-fd22c1502358" width="650" />
 </p>
 
 
