@@ -1,5 +1,10 @@
 # BetterEAMS
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/115930e7-1f5c-48a8-9c4d-85faa458dee4" width="650" />
+</p>
+
+
 BetterEAMS is a Tampermonkey userscript that replaces ShanghaiTech EAMS course election pages with a cleaner course workspace, schedule view, filtering tools, plan-gap hints, favorites, and EAMS-backed select/drop actions.
 
 ## Install
