@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.8
+// @version      0.9.9
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.8";
+  const APP_VERSION = "0.9.9";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -98,6 +98,7 @@
   let renderTimer = null;
   let activeCapture = null;
   let originalSearchResetTimer = null;
+  let previewLessonId = "";
   const pendingMutations = new Set();
 
   if (window.top !== window.self || document.getElementById(`${APP_ID}-panel`)) return;
@@ -1313,6 +1314,12 @@
       scheduleRender();
     });
 
+    panel.addEventListener("mouseover", handleLessonPreviewEnter);
+    panel.addEventListener("mouseout", handleLessonPreviewLeave);
+    panel.addEventListener("focusin", handleLessonPreviewEnter);
+    panel.addEventListener("focusout", handleLessonPreviewLeave);
+    panel.addEventListener("mouseleave", () => clearLessonPreview());
+
     panel.addEventListener("click", (event) => {
       const button = event.target.closest("[data-action]");
       if (!button) return;
@@ -1342,6 +1349,59 @@
       if (action === "locate" && id) locateOriginalRow(id);
       if (action === "origin" && id) triggerOriginalAction(id, button.dataset.originIndex, button.dataset.originKind);
     });
+  }
+
+  function handleLessonPreviewEnter(event) {
+    const card = event.target.closest?.(".beams-card[data-lesson-id]");
+    if (!card || !panel?.contains(card)) return;
+    if (event.type === "mouseover" && card.contains(event.relatedTarget)) return;
+    setLessonPreview(card.dataset.lessonId);
+  }
+
+  function handleLessonPreviewLeave(event) {
+    const card = event.target.closest?.(".beams-card[data-lesson-id]");
+    if (!card || !panel?.contains(card)) return;
+    if (card.contains(event.relatedTarget)) return;
+    clearLessonPreview(card.dataset.lessonId);
+  }
+
+  function setLessonPreview(id) {
+    const item = lessonById(id);
+    const nextId = canPreviewLessonOnTimetable(item) ? item.id : "";
+    if (previewLessonId === nextId) return;
+    previewLessonId = nextId;
+    syncPreviewSourceCards();
+    renderPlanTimetable(panel?.querySelector('[data-role="timetable"]'));
+  }
+
+  function clearLessonPreview(id = "") {
+    if (id && previewLessonId && previewLessonId !== id) return;
+    if (!previewLessonId) return;
+    previewLessonId = "";
+    syncPreviewSourceCards();
+    renderPlanTimetable(panel?.querySelector('[data-role="timetable"]'));
+  }
+
+  function syncPreviewSourceCards() {
+    if (!panel) return;
+    for (const card of panel.querySelectorAll(".beams-card.is-preview-source")) {
+      if (card.dataset.lessonId !== previewLessonId) card.classList.remove("is-preview-source");
+    }
+    if (previewLessonId) {
+      panel.querySelector(`.beams-card[data-lesson-id="${cssEscape(previewLessonId)}"]`)?.classList.add("is-preview-source");
+    }
+  }
+
+  function lessonById(id) {
+    return lessons.find((item) => item.id === id) || null;
+  }
+
+  function canPreviewLessonOnTimetable(item) {
+    return Boolean(item &&
+      !isAppliedLesson(item) &&
+      !activePlanLessonIds().has(item.id) &&
+      Array.isArray(item.arrangeInfo) &&
+      item.arrangeInfo.length);
   }
 
   function applyStateToControls() {
@@ -1381,6 +1441,7 @@
   }
 
   function render() {
+    clearLessonPreview();
     saveState();
     const listNode = panel.querySelector('[data-role="list"]');
     const summaryNode = panel.querySelector('[data-role="summary"]');
@@ -1520,7 +1581,16 @@
     const planLessons = lessonsInPlan(plan);
     const scheduled = planLessons.filter((item) => Array.isArray(item.arrangeInfo) && item.arrangeInfo.length);
     const unscheduled = planLessons.filter((item) => !Array.isArray(item.arrangeInfo) || !item.arrangeInfo.length);
-    if (!planLessons.length) {
+    const previewLesson = lessonById(previewLessonId);
+    const previewBlocks = canPreviewLessonOnTimetable(previewLesson) ?
+      timetableBlocks([previewLesson]).map((block) => ({
+        ...block,
+        isPreview: true,
+        stackIndex: 0,
+        stackCount: 1
+      })) :
+      [];
+    if (!planLessons.length && !previewBlocks.length) {
       node.hidden = false;
       node.innerHTML = `
         <div class="beams-timetable-head">
@@ -1532,10 +1602,14 @@
     }
 
     const blocks = timetableBlocks(scheduled);
+    const calendarBlocks = [...blocks, ...previewBlocks];
     const metrics = calendarMetrics(blocks);
     const periodMarks = calendarPeriodMarks(metrics);
     const lineMarks = calendarLineMarks(metrics);
     const unscheduledHtml = unscheduledTimetableHtml(unscheduled);
+    const previewLabel = previewBlocks.length ? `
+      <span class="beams-preview-label">预览：${escapeHtml(previewLesson.name || previewLesson.no || previewLesson.code || "课程")}</span>
+    ` : "";
 
     node.hidden = false;
     node.innerHTML = `
@@ -1544,6 +1618,8 @@
         <span>${scheduled.length} 门有时间 · ${unscheduled.length} 门未排时间</span>
         <span class="beams-calendar-legend"><b class="is-applied"></b>已选</span>
         <span class="beams-calendar-legend"><b class="is-staged"></b>本地暂存</span>
+        <span class="beams-calendar-legend"><b class="is-preview"></b>悬停预览</span>
+        ${previewLabel}
       </div>
       ${unscheduledHtml}
       <div class="beams-calendar-scroll">
@@ -1560,7 +1636,7 @@
       ${DAYS.slice(1).map((day, dayIndex) => `
             <div class="beams-calendar-day-column" data-day="${escapeHtml(day)}">
               ${lineMarks.map((mark) => `<i class="beams-calendar-hour-line" style="top:${mark.top}px"></i>`).join("")}
-              ${blocks.filter((block) => block.day === dayIndex + 1).map((block) => timetableBlockHtml(block, metrics)).join("")}
+              ${calendarBlocks.filter((block) => block.day === dayIndex + 1).map((block) => timetableBlockHtml(block, metrics)).join("")}
             </div>
           `).join("")}
         </div>
@@ -1797,20 +1873,21 @@
 
   function timetableBlockHtml(block, metrics) {
     const { item, slot } = block;
-    const stacked = block.stackCount > 1;
-    const laneWidth = 100 / Math.max(1, block.stackCount || 1);
+    const preview = Boolean(block.isPreview);
+    const stacked = !preview && block.stackCount > 1;
+    const laneWidth = preview ? 100 : 100 / Math.max(1, block.stackCount || 1);
     const top = Math.max(0, calendarUnitTopPx(block.startUnit, metrics)) + 2;
     const height = Math.max(24, Math.round((block.endUnit - block.startUnit + 1) * metrics.rowHeight) - 4);
-    const left = `calc(${(block.stackIndex || 0) * laneWidth}% + 3px)`;
-    const width = `calc(${laneWidth}% - 6px)`;
-    const status = isAppliedLesson(item) ? "已选" : "暂存";
+    const left = preview ? "3px" : `calc(${(block.stackIndex || 0) * laneWidth}% + 3px)`;
+    const width = preview ? "calc(100% - 6px)" : `calc(${laneWidth}% - 6px)`;
+    const status = preview ? "预览" : isAppliedLesson(item) ? "已选" : "暂存";
     const timeText = formatMinuteRange(block.startMinute, block.endMinute) || formatTimeRange(slot.startTime, slot.endTime);
     const roomText = blockRoomsText(block) || "地点未标明";
     const weeksText = asText(slot.weekStateDigest);
     const title = (block.slots || [slot]).map(scheduleSlotLine).filter(Boolean).join("；");
     return `
       <div
-        class="beams-time-course ${isAppliedLesson(item) ? "is-applied" : "is-staged"} ${stacked ? "has-stack" : ""}"
+        class="beams-time-course ${preview ? "is-preview" : isAppliedLesson(item) ? "is-applied" : "is-staged"} ${stacked ? "has-stack" : ""}"
         style="top:${top}px;height:${height}px;left:${left};width:${width}"
         title="${escapeHtml(title)}"
       >
@@ -4379,6 +4456,21 @@
         background: #e0f2fe;
         border-left: 3px solid #0284c7;
       }
+      .beams-calendar-legend b.is-preview {
+        background: #fef3c7;
+        border: 1px dashed #d97706;
+      }
+      .beams-preview-label {
+        max-width: 100%;
+        border-radius: 999px;
+        padding: 1px 7px;
+        background: #fef3c7;
+        color: #92400e !important;
+        font-size: 11px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       .beams-calendar-scroll {
         min-height: 0;
         flex: 1 1 auto;
@@ -4465,6 +4557,15 @@
       }
       .beams-time-course.is-staged {
         border-left-color: #0284c7;
+      }
+      .beams-time-course.is-preview {
+        z-index: 4;
+        border: 1px dashed #d97706;
+        border-left: 4px solid #d97706;
+        background: rgba(254, 243, 199, 0.78);
+        color: #92400e;
+        pointer-events: none;
+        box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.12), 0 2px 8px rgba(15, 23, 42, 0.12);
       }
       .beams-time-course.has-stack {
         outline: 1px solid rgba(180, 83, 9, 0.25);
@@ -4606,6 +4707,10 @@
       .beams-card.has-plan-gap {
         border-color: #f7c948;
         box-shadow: inset 3px 0 0 #f59e0b;
+      }
+      .beams-card.is-preview-source {
+        border-color: #d97706;
+        box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.16);
       }
       .beams-card-main {
         display: flex;
