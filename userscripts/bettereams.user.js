@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.16
+// @version      0.9.17
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.16";
+  const APP_VERSION = "0.9.17";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -60,7 +60,16 @@
     [20 * 60 + 45, 21 * 60 + 30]
   ];
   const PERIOD_COUNT = PERIOD_MINUTES.length - 1;
+  // Pinyin lookup adapted from tiny-pinyin (MIT): https://github.com/creeperyang/pinyin
+  const PINYIN_UNIHANS = "阿哎安肮凹八挀扳邦勹陂奔伻屄边灬憋汃冫癶峬嚓偲参仓撡冊嵾曽叉芆辿伥抄车抻阷吃充抽出欻揣巛刅吹旾逴呲匆凑粗汆崔邨搓咑呆丹当刀嘚扥灯氐甸刁爹丁丟东吺厾耑垖吨多妸诶奀鞥儿发帆匚飞分丰覅仏紑夫旮侅甘冈皋戈给根刯工勾估瓜乖关光归丨呙哈咍佄夯茠诃黒拫亨噷叿齁乎花怀欢巟灰昏吙丌加戋江艽阶巾坕冂丩凥姢噘军咔开刊忼尻匼肎劥空抠扝夸蒯宽匡亏坤扩垃来兰啷捞肋勒崚哩俩奁良撩毟拎伶溜囖龙瞜噜驴娈掠抡罗呣妈埋嫚牤猫么呅门甿咪宀喵乜民名谬摸哞毪嗯拏腉囡囔孬疒娞恁能妮拈娘鸟捏囜宁妞农羺奴女奻疟黁挪喔讴妑拍眅乓抛呸喷匉丕囨剽氕姘乒钋剖仆七掐千呛悄癿亲靑卭丘区峑缺夋呥穣娆惹人扔日茸厹邚挼堧婑瞤捼仨毢三桒掻閪森僧杀筛山伤弰奢申升尸収书刷衰闩双脽吮说厶忪捜苏狻夊孙唆他囼坍汤夲忑熥剔天旫帖厅囲偷凸湍推吞乇穵歪弯尣危昷翁挝乌夕虲仙乡灱些心星凶休吁吅削坃丫恹央幺倻一囙应哟佣优扜囦曰晕帀災兂匨傮则贼怎増扎捚沾张佋蜇贞争之中州朱抓拽专妆隹宒卓乲宗邹租钻厜尊昨兙";
+  const PINYIN_PINYINS = "A AI AN ANG AO BA BAI BAN BANG BAO BEI BEN BENG BI BIAN BIAO BIE BIN BING BO BU CA CAI CAN CANG CAO CE CEN CENG CHA CHAI CHAN CHANG CHAO CHE CHEN CHENG CHI CHONG CHOU CHU CHUA CHUAI CHUAN CHUANG CHUI CHUN CHUO CI CONG COU CU CUAN CUI CUN CUO DA DAI DAN DANG DAO DE DEN DENG DI DIAN DIAO DIE DING DIU DONG DOU DU DUAN DUI DUN DUO E EI EN ENG ER FA FAN FANG FEI FEN FENG FIAO FO FOU FU GA GAI GAN GANG GAO GE GEI GEN GENG GONG GOU GU GUA GUAI GUAN GUANG GUI GUN GUO HA HAI HAN HANG HAO HE HEI HEN HENG HM HONG HOU HU HUA HUAI HUAN HUANG HUI HUN HUO JI JIA JIAN JIANG JIAO JIE JIN JING JIONG JIU JU JUAN JUE JUN KA KAI KAN KANG KAO KE KEN KENG KONG KOU KU KUA KUAI KUAN KUANG KUI KUN KUO LA LAI LAN LANG LAO LE LEI LENG LI LIA LIAN LIANG LIAO LIE LIN LING LIU LO LONG LOU LU LV LUAN LVE LUN LUO M MA MAI MAN MANG MAO ME MEI MEN MENG MI MIAN MIAO MIE MIN MING MIU MO MOU MU N NA NAI NAN NANG NAO NE NEI NEN NENG NI NIAN NIANG NIAO NIE NIN NING NIU NONG NOU NU NV NUAN NVE NUN NUO O OU PA PAI PAN PANG PAO PEI PEN PENG PI PIAN PIAO PIE PIN PING PO POU PU QI QIA QIAN QIANG QIAO QIE QIN QING QIONG QIU QU QUAN QUE QUN RAN RANG RAO RE REN RENG RI RONG ROU RU RUA RUAN RUI RUN RUO SA SAI SAN SANG SAO SE SEN SENG SHA SHAI SHAN SHANG SHAO SHE SHEN SHENG SHI SHOU SHU SHUA SHUAI SHUAN SHUANG SHUI SHUN SHUO SI SONG SOU SU SUAN SUI SUN SUO TA TAI TAN TANG TAO TE TENG TI TIAN TIAO TIE TING TONG TOU TU TUAN TUI TUN TUO WA WAI WAN WANG WEI WEN WENG WO WU XI XIA XIAN XIANG XIAO XIE XIN XING XIONG XIU XU XUAN XUE XUN YA YAN YANG YAO YE YI YIN YING YO YONG YOU YU YUAN YUE YUN ZA ZAI ZAN ZANG ZAO ZE ZEI ZEN ZENG ZHA ZHAI ZHAN ZHANG ZHAO ZHE ZHEN ZHENG ZHI ZHONG ZHOU ZHU ZHUA ZHUAI ZHUAN ZHUANG ZHUI ZHUN ZHUO ZI ZONG ZOU ZU ZUAN ZUI ZUN ZUO ".split(" ");
+  const PINYIN_EXCEPTIONS = {"曾":"ZENG","沈":"SHEN","嗲":"DIA","碡":"ZHOU","聒":"GUO","炔":"QUE","蚵":"KE","砉":"HUA","嬤":"MO","嬷":"MO","蹒":"PAN","蹊":"XI","丬":"PAN","霰":"XIAN","莘":"XIN","豉":"CHI","饧":"XING","筠":"JUN","长":"CHANG","帧":"ZHEN","峙":"SHI","郍":"NA","芎":"XIONG","谁":"SHUI"};
+  const LATIN_SEARCH_RE = /^[a-z0-9]+$/;
   const TIMETABLE_ROW_HEIGHT = 30;
+  let pinyinSupported = null;
+  let pinyinCollator = null;
+  const pinyinTokenCache = new Map();
+  const searchIndexCache = new Map();
   const DEFAULT_STATE = {
     query: "",
     type: "",
@@ -687,7 +696,7 @@
     const electable = raw.electable === true || (hasStateId && raw.electable !== false && (electionState.electableIds.size === 0 || electionState.electableIds.has(rawId) || elected || preElect));
     const withdrawable = hasStateId ? raw.withdrawable !== false && !electionState.unWithdrawableIds.has(rawId) : raw.withdrawable;
 
-    return {
+    const item = {
       id: rawId || no || `${code}-${index}`,
       rawId,
       lessonId: rawId,
@@ -724,29 +733,44 @@
       scheduleText: formatSchedule(arrangeInfo) || asText(raw.scheduleText),
       syllabusUrl: asText(raw.syllabusUrl),
       teacherProfileUrl: asText(raw.teacherProfileUrl),
-      searchText: normalizeSearchText([
-        raw.__searchText,
-        no,
-        code,
-        raw.name,
-        category,
-        dept,
-        teachers.join(" "),
-        raw.gradeRecord,
-        raw.courseMoldName,
-        raw.teachClassName,
-        raw.preRequirement,
-        raw.similarcourses,
-        raw.remark,
-        raw.campusName,
-        formatSchedule(arrangeInfo) || raw.scheduleText
-      ].join(" "))
+      searchExtras: asText(raw.__searchText)
     };
+    rebuildLessonSearchData(item);
+    return item;
   }
 
   function normalizeTeachers(value) {
     if (Array.isArray(value)) return value.map(asText).filter(Boolean);
     return asText(value).split(/[,，;；、]+/).map((item) => item.trim()).filter(Boolean);
+  }
+
+  function rebuildLessonSearchData(item) {
+    if (!item) return;
+    item.searchIndex = {
+      all: buildSearchIndex([
+        item.searchExtras,
+        item.no,
+        item.code,
+        item.name,
+        item.category,
+        item.dept,
+        item.teachers?.join(" "),
+        item.gradeRecord,
+        item.courseMoldName,
+        item.teachClassName,
+        item.preRequirement,
+        item.similarcourses,
+        item.remark,
+        item.campus,
+        item.scheduleText
+      ].join(" ")),
+      name: buildSearchIndex(item.name),
+      code: buildSearchIndex(`${item.no} ${item.code}`),
+      teachers: buildSearchIndex(item.teachers?.join(" ")),
+      category: buildSearchIndex(item.category),
+      dept: buildSearchIndex(item.dept)
+    };
+    item.searchText = item.searchIndex.all.plain;
   }
 
   function dedupeLessons(items) {
@@ -792,6 +816,9 @@
       target.rawId = source.rawId;
       target.lessonId = source.lessonId || source.rawId;
     }
+    if (source.searchExtras && !normalizeSearchText(target.searchExtras).includes(normalizeSearchText(source.searchExtras))) {
+      target.searchExtras = `${asText(target.searchExtras)} ${source.searchExtras}`.trim();
+    }
     if (source.teachers?.length && !target.teachers?.length) target.teachers = source.teachers;
     if (source.arrangeInfo?.length && !target.arrangeInfo?.length) target.arrangeInfo = source.arrangeInfo;
     for (const key of ["teachClassName", "preRequirement", "remark", "similarcourses", "scheduleText", "syllabusUrl", "teacherProfileUrl"]) {
@@ -818,9 +845,7 @@
       target.available = source.available;
       target.hasCapacity = source.hasCapacity;
     }
-    if (!target.searchText.includes(source.searchText)) {
-      target.searchText = `${target.searchText} ${source.searchText}`.trim();
-    }
+    rebuildLessonSearchData(target);
   }
 
   function hasReliableState(item) {
@@ -1232,7 +1257,7 @@
             <button type="button" data-action="scrollTop">回到顶部</button>
           </div>
           <div class="beams-search-row">
-            <input data-control="query" type="search" placeholder="搜课程、老师、类别、院系、备注..." autocomplete="off">
+            <input data-control="query" type="search" placeholder="搜课程、老师、拼音、首字母、类别、院系..." autocomplete="off">
           </div>
           <div class="beams-controls">
             ${selectHtml("type", "课程类别")}
@@ -2026,8 +2051,62 @@
     return unit === "course" ? `${value} 门` : `${value} 学分`;
   }
 
+  function buildQueryTokens(query) {
+    return tokenize(query).map(buildSearchToken).filter(Boolean);
+  }
+
+  function buildSearchToken(value) {
+    const plain = normalizeSearchText(value);
+    const compact = plain.replace(/\s+/g, "");
+    if (!compact) return null;
+    return {
+      plain,
+      compact,
+      isLatin: LATIN_SEARCH_RE.test(compact)
+    };
+  }
+
+  function lessonMatchesQueryToken(item, token) {
+    return searchIndexMatches(item?.searchIndex?.all, token);
+  }
+
+  function searchIndexMatches(index, token) {
+    if (!index || !token) return false;
+    if (index.plain.includes(token.plain) || index.compact.includes(token.compact)) return true;
+    if (token.isLatin && (index.pinyinCompact.includes(token.compact) || index.initials.includes(token.compact))) return true;
+    if (token.compact.length < 2) return false;
+    if (isSubsequenceMatch(token.compact, index.compact)) return true;
+    if (token.isLatin && (isSubsequenceMatch(token.compact, index.pinyinCompact) || isSubsequenceMatch(token.compact, index.initials))) return true;
+    return false;
+  }
+
+  function searchIndexScore(index, token, weights = {}) {
+    if (!index || !token) return 0;
+    let score = 0;
+    if (index.plain.includes(token.plain) || index.compact.includes(token.compact)) score = Math.max(score, weights.direct || 0);
+    if (token.isLatin && index.pinyinCompact.includes(token.compact)) score = Math.max(score, weights.pinyin || 0);
+    if (token.isLatin && index.initials.includes(token.compact)) score = Math.max(score, weights.initials || 0);
+    if (token.compact.length >= 2) {
+      if (isSubsequenceMatch(token.compact, index.compact)) score = Math.max(score, weights.fuzzy || 0);
+      if (token.isLatin && isSubsequenceMatch(token.compact, index.pinyinCompact)) score = Math.max(score, weights.fuzzyPinyin || weights.fuzzy || 0);
+      if (token.isLatin && isSubsequenceMatch(token.compact, index.initials)) score = Math.max(score, weights.fuzzyInitials || weights.fuzzyPinyin || weights.fuzzy || 0);
+    }
+    return score;
+  }
+
+  function isSubsequenceMatch(needle, haystack) {
+    if (!needle || !haystack) return false;
+    let offset = 0;
+    for (const char of haystack) {
+      if (char !== needle[offset]) continue;
+      offset += 1;
+      if (offset === needle.length) return true;
+    }
+    return false;
+  }
+
   function filteredLessons() {
-    const tokens = tokenize(state.query);
+    const tokens = buildQueryTokens(state.query);
     const selectedIds = new Set();
     const result = [];
 
@@ -2047,7 +2126,7 @@
       if (state.availability === "unknown" && item.available !== null) continue;
       if (state.hideConflict && hasConflict(item)) continue;
       if (state.onlyPlanGaps && !hasCurriculumPlanGap(item)) continue;
-      if (tokens.length && !tokens.every((token) => item.searchText.includes(token))) continue;
+      if (tokens.length && !tokens.every((token) => lessonMatchesQueryToken(item, token))) continue;
       item.__score = scoreLesson(item, tokens);
       result.push(item);
       selectedIds.add(item.id);
@@ -2083,16 +2162,16 @@
   function scoreLesson(item, tokens) {
     if (!tokens.length) return 0;
     let score = 0;
-    const name = normalizeSearchText(item.name);
-    const code = normalizeSearchText(`${item.no} ${item.code}`);
-    const teachers = normalizeSearchText(item.teachers.join(" "));
+    const search = item.searchIndex || {};
     for (const token of tokens) {
-      if (code.includes(token)) score += 12;
-      if (name.includes(token)) score += 10;
-      if (teachers.includes(token)) score += 8;
-      if (normalizeSearchText(item.category).includes(token)) score += 6;
-      if (normalizeSearchText(item.dept).includes(token)) score += 5;
-      if (item.searchText.includes(token)) score += 1;
+      score += Math.max(
+        searchIndexScore(search.code, token, { direct: 12, fuzzy: 4 }),
+        searchIndexScore(search.name, token, { direct: 10, pinyin: 9, initials: 8, fuzzy: 5, fuzzyPinyin: 4, fuzzyInitials: 4 }),
+        searchIndexScore(search.teachers, token, { direct: 8, pinyin: 7, initials: 6, fuzzy: 4, fuzzyPinyin: 3, fuzzyInitials: 3 }),
+        searchIndexScore(search.category, token, { direct: 6, pinyin: 5, initials: 4, fuzzy: 3, fuzzyPinyin: 2, fuzzyInitials: 2 }),
+        searchIndexScore(search.dept, token, { direct: 5, pinyin: 4, initials: 3, fuzzy: 2, fuzzyPinyin: 2, fuzzyInitials: 2 }),
+        searchIndexScore(search.all, token, { direct: 1, pinyin: 1, initials: 1, fuzzy: 1, fuzzyPinyin: 1, fuzzyInitials: 1 })
+      );
     }
     return score;
   }
@@ -4228,9 +4307,10 @@
   function findLessonForDebug(query) {
     const normalized = normalizeSearchText(query);
     if (!normalized) return null;
+    const tokens = buildQueryTokens(query);
     return lessons.find((item) => normalizeSearchText(item.id) === normalized || normalizeSearchText(item.no) === normalized) ||
       lessons.find((item) => normalizeSearchText(item.code) === normalized) ||
-      lessons.find((item) => normalizeSearchText(item.name).includes(normalized) || item.searchText.includes(normalized)) ||
+      lessons.find((item) => tokens.every((token) => lessonMatchesQueryToken(item, token))) ||
       null;
   }
 
@@ -5519,6 +5599,108 @@
 
   function tokenize(query) {
     return normalizeSearchText(query).split(/\s+/).filter(Boolean);
+  }
+
+  function buildSearchIndex(value) {
+    const source = cleanText(value);
+    if (!source) return { plain: "", compact: "", pinyinCompact: "", initials: "" };
+    const cached = searchIndexCache.get(source);
+    if (cached) return cached;
+
+    const plain = normalizeSearchText(source);
+    const compact = plain.replace(/\s+/g, "");
+    const pinyinCompact = normalizeSearchText(convertSearchPinyin(source)).replace(/\s+/g, "");
+    const initials = normalizeSearchText(convertSearchPinyinInitials(source)).replace(/\s+/g, "");
+    const index = { plain, compact, pinyinCompact, initials };
+    searchIndexCache.set(source, index);
+    return index;
+  }
+
+  function isPinyinSupported(force = false) {
+    if (!force && pinyinSupported !== null) return pinyinSupported;
+    if (typeof Intl === "object" && Intl?.Collator) {
+      pinyinCollator = new Intl.Collator(["zh-Hans-CN", "zh-CN"]);
+      pinyinSupported = Intl.Collator.supportedLocalesOf(["zh-CN"]).length === 1;
+    } else {
+      pinyinSupported = false;
+    }
+    return pinyinSupported;
+  }
+
+  function pinyinTokenForChar(char) {
+    if (!char) return { source: "", target: "", type: "unknown" };
+    if (pinyinTokenCache.has(char)) return pinyinTokenCache.get(char);
+
+    const token = { source: char, target: char, type: "unknown" };
+    if (!isPinyinSupported()) {
+      pinyinTokenCache.set(char, token);
+      return token;
+    }
+    if (Object.prototype.hasOwnProperty.call(PINYIN_EXCEPTIONS, char)) {
+      token.type = "pinyin";
+      token.target = PINYIN_EXCEPTIONS[char];
+      pinyinTokenCache.set(char, token);
+      return token;
+    }
+    if (char.charCodeAt(0) < 256) {
+      token.type = "latin";
+      pinyinTokenCache.set(char, token);
+      return token;
+    }
+
+    let offset = -1;
+    let cmp = pinyinCollator.compare(char, PINYIN_UNIHANS[0]);
+    if (cmp < 0) {
+      pinyinTokenCache.set(char, token);
+      return token;
+    }
+    if (cmp === 0) {
+      offset = 0;
+    } else {
+      cmp = pinyinCollator.compare(char, PINYIN_UNIHANS[PINYIN_UNIHANS.length - 1]);
+      if (cmp > 0) {
+        pinyinTokenCache.set(char, token);
+        return token;
+      }
+      if (cmp === 0) {
+        offset = PINYIN_UNIHANS.length - 1;
+      }
+    }
+
+    token.type = "pinyin";
+    if (offset < 0) {
+      let begin = 0;
+      let end = PINYIN_UNIHANS.length - 1;
+      while (begin <= end) {
+        offset = Math.trunc((begin + end) / 2);
+        cmp = pinyinCollator.compare(char, PINYIN_UNIHANS[offset]);
+        if (cmp === 0) break;
+        if (cmp > 0) begin = offset + 1;
+        else end = offset - 1;
+      }
+    }
+    if (cmp < 0) offset -= 1;
+
+    token.target = PINYIN_PINYINS[offset] || char;
+    if (!PINYIN_PINYINS[offset]) token.type = "unknown";
+    pinyinTokenCache.set(char, token);
+    return token;
+  }
+
+  function convertSearchPinyin(value) {
+    return asText(value).split("").map((char) => {
+      const token = pinyinTokenForChar(char);
+      return token.type === "pinyin" ? token.target.toLowerCase() : token.target;
+    }).join("");
+  }
+
+  function convertSearchPinyinInitials(value) {
+    return asText(value).split("").map((char) => {
+      const token = pinyinTokenForChar(char);
+      if (token.type === "pinyin") return token.target[0]?.toLowerCase() || "";
+      if (token.type === "latin") return token.target.toLowerCase();
+      return token.target;
+    }).join("");
   }
 
   function normalizeSearchText(value) {
