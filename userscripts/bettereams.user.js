@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.22
+// @version      0.9.23
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.22";
+  const APP_VERSION = "0.9.23";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -2097,6 +2097,7 @@
   function timetableOverflowEntryHtml(block) {
     const item = block.item;
     const title = timetableBlockTitle(block);
+    const summary = [item.no || item.code || "", item.teachers?.join("、") || ""].filter(Boolean).join(" · ");
     const detailParts = [
       timetableBlockRangeLabel(block),
       timetableBlockTimeText(block),
@@ -2115,6 +2116,7 @@
           <strong>${escapeHtml(item.name || item.no || item.code || "未命名课程")}</strong>
           <em>${escapeHtml(timetableBlockStatus(block))}</em>
         </div>
+        ${summary ? `<span class="beams-time-overflow-summary">${escapeHtml(summary)}</span>` : ""}
         <span>${escapeHtml(detailParts.join(" · ") || "查看课程卡")}</span>
       </button>
     `;
@@ -2285,6 +2287,7 @@
     const roomText = block.previewRoomText || blockRoomsText(block) || "地点未标明";
     const weeksText = preview ? "" : timetableBlockWeekText(block);
     const title = timetableBlockTitle(block);
+    const compactDetailPopover = compact && !preview ? timetableCompactDetailPopoverHtml(block) : "";
     return `
       <div
         class="beams-time-course ${preview ? "is-preview" : overlay ? "is-staged-overlay" : isAppliedLesson(item) ? "is-applied" : "is-staged"} ${compact ? "is-compact" : ""} ${block.isGroupMember ? "is-group-member" : ""}"
@@ -2294,16 +2297,46 @@
         data-end-unit="${escapeHtml(String(block.endUnit || 0))}"
         title="${escapeHtml(title)}"
       >
-        <div class="beams-calendar-course-top">
-          <strong>${escapeHtml(shortTimetableName(item.name, compact ? 10 : 18))}</strong>
-          <em>${escapeHtml(status)}</em>
+        <div class="beams-time-course-body">
+          <div class="beams-calendar-course-top">
+            <strong>${escapeHtml(shortTimetableName(item.name, compact ? 10 : 18))}</strong>
+            <em>${escapeHtml(status)}</em>
+          </div>
+          ${compact ? "" : `
+            <span class="beams-calendar-course-code">${escapeHtml(item.no || item.code || "")}</span>
+            <span class="beams-calendar-room">${escapeHtml(roomText)}</span>
+            <span class="beams-calendar-time">${escapeHtml(timeText)}</span>
+            ${weeksText ? `<span class="beams-calendar-weeks">${escapeHtml(`${weeksText}周`)}</span>` : ""}
+          `}
         </div>
-        ${compact ? "" : `
-          <span class="beams-calendar-course-code">${escapeHtml(item.no || item.code || "")}</span>
-          <span class="beams-calendar-room">${escapeHtml(roomText)}</span>
-          <span class="beams-calendar-time">${escapeHtml(timeText)}</span>
-          ${weeksText ? `<span class="beams-calendar-weeks">${escapeHtml(`${weeksText}周`)}</span>` : ""}
-        `}
+        ${compactDetailPopover}
+      </div>
+    `;
+  }
+
+  function timetableCompactDetailPopoverHtml(block) {
+    const item = block.item || {};
+    const timeSummary = [timetableBlockRangeLabel(block), timetableBlockTimeText(block)].filter(Boolean).join(" · ");
+    const weeksText = timetableBlockWeekText(block);
+    const roomText = block.previewRoomText || blockRoomsText(block) || "地点未标明";
+    const codeText = [item.no || item.code || "", creditText(item)].filter(Boolean).join(" · ");
+    const teacherText = item.teachers?.join("、") || "";
+    const classes = [
+      "beams-time-course-pop",
+      block.day >= 5 ? "is-left" : "",
+      block.endUnit >= Math.max(10, PERIOD_COUNT - 3) ? "is-above" : ""
+    ].filter(Boolean).join(" ");
+    return `
+      <div class="${classes}">
+        <div class="beams-time-course-pop-top">
+          <strong>${escapeHtml(item.name || item.no || item.code || "未命名课程")}</strong>
+          <em>${escapeHtml(timetableBlockStatus(block))}</em>
+        </div>
+        ${codeText ? `<span class="beams-time-course-pop-summary">${escapeHtml(codeText)}</span>` : ""}
+        ${teacherText ? `<span>${escapeHtml(teacherText)}</span>` : ""}
+        ${timeSummary ? `<span>${escapeHtml(timeSummary)}</span>` : ""}
+        ${weeksText ? `<span>${escapeHtml(`${weeksText}周`)}</span>` : ""}
+        <span>${escapeHtml(roomText)}</span>
       </div>
     `;
   }
@@ -5141,11 +5174,16 @@
         padding: 4px 5px;
         background: rgba(224, 242, 254, 0.86);
         color: #075985;
-        overflow: hidden;
+        overflow: visible;
         box-shadow: 0 1px 4px rgba(15, 23, 42, 0.10);
         pointer-events: auto;
         cursor: pointer;
         transition: opacity .12s ease, box-shadow .12s ease, transform .12s ease, filter .12s ease;
+      }
+      .beams-time-course-body {
+        height: 100%;
+        border-radius: inherit;
+        overflow: hidden;
       }
       .beams-time-course.is-applied {
         border-left-color: #059669;
@@ -5183,6 +5221,9 @@
       .beams-time-group.is-open {
         z-index: 6;
       }
+      .beams-time-group:hover {
+        z-index: 7;
+      }
       .beams-time-group:hover .beams-time-course.is-group-member {
         opacity: 0.46;
         filter: saturate(0.82);
@@ -5208,6 +5249,93 @@
       }
       .beams-time-course.is-compact em {
         align-self: flex-start;
+      }
+      .beams-time-course-pop {
+        position: absolute;
+        top: -4px;
+        left: calc(100% + 8px);
+        z-index: 12;
+        width: 188px;
+        max-width: min(210px, 26vw);
+        display: grid;
+        gap: 3px;
+        border: 1px solid rgba(203, 213, 225, 0.96);
+        border-radius: 9px;
+        padding: 8px 9px;
+        background: rgba(255, 255, 255, 0.98);
+        color: #0f172a;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+        opacity: 0;
+        transform: translateX(6px) scale(0.985);
+        pointer-events: auto;
+        transition: opacity .12s ease, transform .12s ease;
+      }
+      .beams-time-course-pop.is-left {
+        left: auto;
+        right: calc(100% + 8px);
+        transform: translateX(-6px) scale(0.985);
+      }
+      .beams-time-course-pop.is-above {
+        top: auto;
+        bottom: -4px;
+      }
+      .beams-time-course:hover .beams-time-course-pop,
+      .beams-time-course:focus-within .beams-time-course-pop {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+      }
+      .beams-time-course-pop.is-left,
+      .beams-time-course:hover .beams-time-course-pop.is-left,
+      .beams-time-course:focus-within .beams-time-course-pop.is-left {
+        transform-origin: right center;
+      }
+      .beams-time-course-pop-top {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+      }
+      .beams-time-course .beams-time-course-pop-top strong {
+        flex: 1;
+        min-width: 0;
+        display: block;
+        font-size: 12px;
+        line-height: 1.25;
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+      }
+      .beams-time-course-pop-top em {
+        flex: 0 0 auto;
+        border-radius: 999px;
+        padding: 1px 5px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 9px;
+        font-style: normal;
+        line-height: 1.35;
+      }
+      .beams-time-course.is-applied .beams-time-course-pop-top em {
+        background: #dcfce7;
+        color: #047857;
+      }
+      .beams-time-course.is-staged-overlay .beams-time-course-pop-top em,
+      .beams-time-course.is-staged .beams-time-course-pop-top em {
+        background: #eff6ff;
+        color: #1d4ed8;
+      }
+      .beams-time-course .beams-time-course-pop span {
+        display: block;
+        color: #475569;
+        font-size: 10px;
+        line-height: 1.35;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        overflow-wrap: anywhere;
+      }
+      .beams-time-course-pop-summary {
+        color: #0f172a !important;
+        font-weight: 600;
       }
       .beams-time-overflow {
         position: absolute;
@@ -5296,6 +5424,10 @@
       .beams-time-overflow-entry strong {
         flex: 1;
         font-size: 11px;
+      }
+      .beams-time-overflow-summary {
+        color: #0f172a !important;
+        font-weight: 500;
       }
       .beams-time-overflow-entry em {
         flex: 0 0 auto;
