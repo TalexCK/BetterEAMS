@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.12
+// @version      0.9.13
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.12";
+  const APP_VERSION = "0.9.13";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -1633,17 +1633,6 @@
     const previewLabel = previewBlocks.length ? `
       <span class="beams-preview-label">预览：${escapeHtml(previewLesson.name || previewLesson.no || previewLesson.code || "课程")}</span>
     ` : "";
-    const slotFilterLabel = slotFilter ? `
-      <button
-        type="button"
-        class="beams-slot-filter-chip"
-        data-action="pickSlot"
-        data-day="${escapeHtml(slotFilter.day)}"
-        data-period="${escapeHtml(slotFilter.period)}"
-        title="再次点击取消按这个时间点筛课"
-      >按课表筛选：${escapeHtml(slotFilter.day)} 第${escapeHtml(slotFilter.period)}节</button>
-    ` : "";
-
     node.hidden = false;
     node.innerHTML = `
       <div class="beams-timetable-head">
@@ -1653,7 +1642,6 @@
         <span class="beams-calendar-legend"><b class="is-staged"></b>本地暂存</span>
         <span class="beams-calendar-legend"><b class="is-preview"></b>悬停预览</span>
         ${previewLabel}
-        ${slotFilterLabel}
       </div>
       ${unscheduledHtml}
       <div class="beams-calendar-scroll">
@@ -4618,17 +4606,6 @@
         font-size: 11px;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      .beams-slot-filter-chip {
-        height: 22px;
-        border: 1px solid rgba(15, 118, 110, 0.22);
-        border-radius: 999px;
-        padding: 0 8px;
-        background: rgba(15, 118, 110, 0.08);
-        color: #0f766e !important;
-        font-size: 11px;
-        line-height: 20px;
         white-space: nowrap;
       }
       .beams-calendar-scroll {
