@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.20
+// @version      0.9.21
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.20";
+  const APP_VERSION = "0.9.21";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -1350,6 +1350,15 @@
     panel.addEventListener("mouseleave", () => clearLessonPreview());
 
     panel.addEventListener("click", (event) => {
+      const block = event.target.closest(".beams-time-course[data-day][data-start-unit][data-end-unit]");
+      if (block && !event.target.closest("[data-action]")) {
+        if (toggleTimetableSlotFilterFromBlock(block, event)) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+      }
+
       const button = event.target.closest("[data-action]");
       if (!button) {
         if (pinnedTimetableOverflowGroups.size && !event.target.closest(".beams-time-group")) {
@@ -1473,6 +1482,23 @@
     applyStateToControls();
     render();
     panel?.querySelector('[data-role="list"]')?.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function toggleTimetableSlotFilterFromBlock(block, event) {
+    const dayIndex = Number(block.dataset.day);
+    const day = DAYS[dayIndex] || "";
+    const startUnit = clampPeriodUnit(Number(block.dataset.startUnit));
+    const endUnit = clampPeriodUnit(Number(block.dataset.endUnit));
+    if (!day || !startUnit || !endUnit || endUnit < startUnit) return false;
+
+    const rect = block.getBoundingClientRect();
+    const ratio = rect.height > 0 ?
+      Math.min(0.999, Math.max(0, (event.clientY - rect.top) / rect.height)) :
+      0;
+    const span = Math.max(1, endUnit - startUnit + 1);
+    const period = Math.min(endUnit, startUnit + Math.floor(ratio * span));
+    toggleTimetableSlotFilter(day, period);
+    return true;
   }
 
   function toggleStagedTimetableVisibility() {
@@ -2261,6 +2287,9 @@
       <div
         class="beams-time-course ${preview ? "is-preview" : overlay ? "is-staged-overlay" : isAppliedLesson(item) ? "is-applied" : "is-staged"} ${compact ? "is-compact" : ""} ${block.isGroupMember ? "is-group-member" : ""}"
         style="top:${top}px;height:${height}px;left:${left};width:${width}"
+        data-day="${escapeHtml(String(block.day || 0))}"
+        data-start-unit="${escapeHtml(String(block.startUnit || 0))}"
+        data-end-unit="${escapeHtml(String(block.endUnit || 0))}"
         title="${escapeHtml(title)}"
       >
         <div class="beams-calendar-course-top">
@@ -4167,7 +4196,11 @@
   }
 
   function clearFilters() {
-    Object.assign(state, { ...DEFAULT_STATE, collapsed: false });
+    Object.assign(state, {
+      ...DEFAULT_STATE,
+      collapsed: false,
+      showStagedOnTimetable: state.showStagedOnTimetable
+    });
     applyStateToControls();
     render();
   }
@@ -5105,6 +5138,7 @@
         overflow: hidden;
         box-shadow: 0 1px 4px rgba(15, 23, 42, 0.10);
         pointer-events: auto;
+        cursor: pointer;
         transition: opacity .12s ease, box-shadow .12s ease, transform .12s ease, filter .12s ease;
       }
       .beams-time-course.is-applied {
