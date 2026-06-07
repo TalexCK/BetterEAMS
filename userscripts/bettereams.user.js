@@ -4490,8 +4490,8 @@
         border-left: 3px solid #0284c7;
       }
       .beams-calendar-legend b.is-preview {
-        background: #fef3c7;
-        border: 1px dashed #d97706;
+        background: rgba(254, 243, 199, 0.56);
+        border: 1px dashed rgba(217, 119, 6, 0.58);
       }
       .beams-preview-label {
         max-width: 100%;
@@ -4593,12 +4593,12 @@
       }
       .beams-time-course.is-preview {
         z-index: 4;
-        border: 1px dashed #d97706;
-        border-left: 4px solid #d97706;
-        background: rgba(254, 243, 199, 0.78);
+        border: 1px dashed rgba(217, 119, 6, 0.46);
+        border-left: 4px solid rgba(217, 119, 6, 0.68);
+        background: rgba(254, 243, 199, 0.46);
         color: #92400e;
         pointer-events: none;
-        box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.12), 0 2px 8px rgba(15, 23, 42, 0.12);
+        box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.08), 0 1px 4px rgba(15, 23, 42, 0.08);
       }
       .beams-time-course.has-stack {
         outline: 1px solid rgba(180, 83, 9, 0.25);
@@ -4742,8 +4742,8 @@
         box-shadow: inset 3px 0 0 #f59e0b;
       }
       .beams-card.is-preview-source {
-        border-color: #d97706;
-        box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.16);
+        border-color: rgba(217, 119, 6, 0.52);
+        box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.12);
       }
       .beams-card-main {
         display: flex;
