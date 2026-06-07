@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.14
+// @version      0.9.15
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.14";
+  const APP_VERSION = "0.9.15";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -4584,9 +4584,10 @@
       .beams-timetable-head {
         display: flex;
         flex-wrap: wrap;
-        align-items: baseline;
+        align-items: center;
         gap: 6px;
         margin-bottom: 6px;
+        min-height: 22px;
       }
       .beams-timetable-head strong {
         font-size: 13px;
@@ -4619,12 +4620,16 @@
         border: 1px dashed rgba(217, 119, 6, 0.58);
       }
       .beams-preview-label {
+        display: inline-flex;
+        align-items: center;
         max-width: 100%;
         border-radius: 999px;
         padding: 1px 7px;
         background: #fef3c7;
         color: #92400e !important;
         font-size: 11px;
+        line-height: 1.2;
+        min-height: 18px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
