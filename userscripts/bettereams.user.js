@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.18
+// @version      0.9.20
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.18";
+  const APP_VERSION = "0.9.20";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -66,6 +66,7 @@
   const PINYIN_EXCEPTIONS = {"曾":"ZENG","沈":"SHEN","嗲":"DIA","碡":"ZHOU","聒":"GUO","炔":"QUE","蚵":"KE","砉":"HUA","嬤":"MO","嬷":"MO","蹒":"PAN","蹊":"XI","丬":"PAN","霰":"XIAN","莘":"XIN","豉":"CHI","饧":"XING","筠":"JUN","长":"CHANG","帧":"ZHEN","峙":"SHI","郍":"NA","芎":"XIONG","谁":"SHUI"};
   const LATIN_SEARCH_RE = /^[a-z0-9]+$/;
   const TIMETABLE_ROW_HEIGHT = 30;
+  const TIMETABLE_MAX_VISIBLE_LANES = 3;
   let pinyinSupported = null;
   let pinyinCollator = null;
   const pinyinTokenCache = new Map();
@@ -83,6 +84,7 @@
     onlyFavorites: false,
     hideConflict: false,
     onlyPlanGaps: false,
+    showStagedOnTimetable: false,
     sort: "relevance",
     collapsed: false
   };
@@ -108,6 +110,7 @@
   let activeCapture = null;
   let originalSearchResetTimer = null;
   let previewLessonId = "";
+  let pinnedTimetableOverflowGroups = new Set();
   const pendingMutations = new Set();
 
   if (window.top !== window.self || document.getElementById(`${APP_ID}-panel`)) return;
@@ -1252,6 +1255,7 @@
           <div class="beams-tools">
             <strong class="beams-workspace-label">当前工作区</strong>
             <button type="button" data-action="clearPlan">清空暂存</button>
+            <button type="button" data-action="toggleStagedTimetable">显示暂存叠加</button>
             <button type="button" class="beams-apply-plan" data-action="applyPlan">按工作区选课</button>
             <button type="button" data-action="clear">清空筛选</button>
             <button type="button" data-action="scrollTop">回到顶部</button>
@@ -1347,7 +1351,13 @@
 
     panel.addEventListener("click", (event) => {
       const button = event.target.closest("[data-action]");
-      if (!button) return;
+      if (!button) {
+        if (pinnedTimetableOverflowGroups.size && !event.target.closest(".beams-time-group")) {
+          pinnedTimetableOverflowGroups.clear();
+          renderPlanTimetable(panel?.querySelector('[data-role="timetable"]'));
+        }
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       const action = button.dataset.action;
@@ -1361,6 +1371,7 @@
       if (action === "pickSlot") {
         toggleTimetableSlotFilter(button.dataset.day, button.dataset.period);
       }
+      if (action === "toggleStagedTimetable") toggleStagedTimetableVisibility();
       if (action === "clear") clearFilters();
       if (action === "clearPlan") clearActivePlan();
       if (action === "applyPlan") applyActivePlanToEams();
@@ -1375,6 +1386,14 @@
       if (action === "favorite" && id) toggleFavorite(id);
       if (action === "planToggle" && id) toggleLessonInActivePlan(id);
       if (action === "locate" && id) locateOriginalRow(id);
+      if (action === "toggleOverflowGroup") togglePinnedTimetableOverflow(button.dataset.groupId);
+      if (action === "focusLesson" && (button.dataset.lessonId || id)) {
+        focusLessonCard(button.dataset.lessonId || id);
+        if (pinnedTimetableOverflowGroups.size) {
+          pinnedTimetableOverflowGroups.clear();
+          renderPlanTimetable(panel?.querySelector('[data-role="timetable"]'));
+        }
+      }
       if (action === "origin" && id) triggerOriginalAction(id, button.dataset.originIndex, button.dataset.originKind);
     });
   }
@@ -1456,6 +1475,13 @@
     panel?.querySelector('[data-role="list"]')?.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  function toggleStagedTimetableVisibility() {
+    state.showStagedOnTimetable = !state.showStagedOnTimetable;
+    saveState();
+    renderPlanTimetable(panel?.querySelector('[data-role="timetable"]'));
+    syncWorkspaceToolStates();
+  }
+
   function applyStateToControls() {
     for (const [name, control] of Object.entries(controls)) {
       if (control.type === "checkbox") {
@@ -1503,6 +1529,7 @@
     const pageMetaNode = panel.querySelector('[data-role="pageMeta"]');
     const filtered = filteredLessons();
 
+    syncWorkspaceToolStates();
     summaryNode.textContent = summaryText(filtered.length, lessons.length);
     renderPageMeta(pageMetaNode);
     renderSandboxSummary(sandboxNode);
@@ -1518,6 +1545,15 @@
     hideLegacyCourseLists();
     hideLegacyPageChrome();
     updateDebugState();
+  }
+
+  function syncWorkspaceToolStates() {
+    const button = panel?.querySelector('[data-action="toggleStagedTimetable"]');
+    if (!button) return;
+    const visible = Boolean(state.showStagedOnTimetable);
+    button.textContent = visible ? "隐藏暂存叠加" : "显示暂存叠加";
+    button.classList.toggle("is-staged-visibility-active", visible);
+    button.title = visible ? "暂存课程正在课表里按重叠分栏显示" : "把暂存课程加入课表的分栏叠加视图";
   }
 
   function summaryText(filteredCount, totalCount) {
@@ -1631,8 +1667,14 @@
       return;
     }
     const planLessons = lessonsInPlan(plan);
-    const scheduled = planLessons.filter((item) => Array.isArray(item.arrangeInfo) && item.arrangeInfo.length);
-    const unscheduled = planLessons.filter((item) => !Array.isArray(item.arrangeInfo) || !item.arrangeInfo.length);
+    const appliedLessons = planLessons.filter(isAppliedLesson);
+    const stagedLessons = planLessons.filter((item) => !isAppliedLesson(item));
+    const appliedScheduled = appliedLessons.filter((item) => Array.isArray(item.arrangeInfo) && item.arrangeInfo.length);
+    const stagedScheduled = stagedLessons.filter((item) => Array.isArray(item.arrangeInfo) && item.arrangeInfo.length);
+    const appliedUnscheduled = appliedLessons.filter((item) => !Array.isArray(item.arrangeInfo) || !item.arrangeInfo.length);
+    const stagedUnscheduled = stagedLessons.filter((item) => !Array.isArray(item.arrangeInfo) || !item.arrangeInfo.length);
+    const showStaged = Boolean(state.showStagedOnTimetable);
+    const visibleUnscheduled = showStaged ? [...appliedUnscheduled, ...stagedUnscheduled] : appliedUnscheduled;
     const previewLesson = lessonById(previewLessonId);
     const previewBlocks = canPreviewLessonOnTimetable(previewLesson) ?
       timetablePreviewBlocks(previewLesson) :
@@ -1648,24 +1690,37 @@
       return;
     }
 
-    const blocks = timetableBlocks(scheduled);
-    const calendarBlocks = [...blocks, ...previewBlocks];
-    const metrics = calendarMetrics(blocks);
+    const appliedBlocks = timetableBlocks(appliedScheduled, { kind: "applied" });
+    const stagedBlocks = showStaged ?
+      timetableBlocks(stagedScheduled, { kind: "staged", isOverlay: true }) :
+      [];
+    const groupedLayout = layoutTimetableGroups([...appliedBlocks, ...stagedBlocks], {
+      maxVisibleLanes: TIMETABLE_MAX_VISIBLE_LANES
+    });
+    trimPinnedTimetableOverflowGroups(groupedLayout.validGroupIds);
+    const metrics = calendarMetrics();
     const periodMarks = calendarPeriodMarks(metrics);
     const lineMarks = calendarLineMarks(metrics);
-    const unscheduledHtml = unscheduledTimetableHtml(unscheduled);
+    const unscheduledHtml = unscheduledTimetableHtml(visibleUnscheduled);
     const slotFilter = selectedTimetableSlot();
-    const previewLabel = previewBlocks.length ? `
-      <span class="beams-preview-label">预览：${escapeHtml(previewLesson.name || previewLesson.no || previewLesson.code || "课程")}</span>
+    const summaryParts = [`${appliedScheduled.length} 门已选有时间`];
+    if (stagedScheduled.length) summaryParts.push(showStaged ? `${stagedScheduled.length} 门暂存已叠加` : `${stagedScheduled.length} 门暂存已隐藏`);
+    if (visibleUnscheduled.length) summaryParts.push(`${visibleUnscheduled.length} 门未排时间`);
+    const previewLabel = `
+      <span class="beams-preview-label ${previewBlocks.length ? "" : "is-empty"}">${previewBlocks.length ? `预览：${escapeHtml(previewLesson.name || previewLesson.no || previewLesson.code || "课程")}` : "预览占位"}</span>
+    `;
+    const stagedHint = !showStaged && (stagedScheduled.length || stagedUnscheduled.length) ? `
+      <span class="beams-staged-hint">还有 ${escapeHtml(String(stagedScheduled.length + stagedUnscheduled.length))} 门暂存未显示</span>
     ` : "";
     node.hidden = false;
     node.innerHTML = `
       <div class="beams-timetable-head">
         <strong>当前工作区课表</strong>
-        <span>${scheduled.length} 门有时间 · ${unscheduled.length} 门未排时间</span>
+        <span>${escapeHtml(summaryParts.join(" · "))}</span>
         <span class="beams-calendar-legend"><b class="is-applied"></b>已选</span>
-        <span class="beams-calendar-legend"><b class="is-staged"></b>本地暂存</span>
+        <span class="beams-calendar-legend"><b class="is-staged-overlay"></b>暂存叠加</span>
         <span class="beams-calendar-legend"><b class="is-preview"></b>悬停预览</span>
+        ${stagedHint}
         ${previewLabel}
       </div>
       ${unscheduledHtml}
@@ -1683,7 +1738,8 @@
       ${DAYS.slice(1).map((day, dayIndex) => `
             <div class="beams-calendar-day-column" data-day="${escapeHtml(day)}">
               ${lineMarks.map((mark) => `<i class="beams-calendar-hour-line" style="top:${mark.top}px"></i>`).join("")}
-              ${calendarBlocks.filter((block) => block.day === dayIndex + 1).map((block) => timetableBlockHtml(block, metrics)).join("")}
+              ${groupedLayout.groups.filter((group) => group.day === dayIndex + 1).map((group) => timetableGroupHtml(group, metrics)).join("")}
+              ${previewBlocks.filter((block) => block.day === dayIndex + 1).map((block) => timetableBlockHtml(block, metrics)).join("")}
               ${timetableCellLayerHtml(day, metrics, slotFilter)}
             </div>
           `).join("")}
@@ -1746,7 +1802,7 @@
     `;
   }
 
-  function timetableBlocks(items) {
+  function timetableBlocks(items, extra = {}) {
     const blocks = [];
     for (const item of items) {
       for (const slot of item.arrangeInfo || []) {
@@ -1761,35 +1817,14 @@
           startMinute: range[0],
           endMinute: range[1],
           startUnit: unitRange[0],
-          endUnit: unitRange[1]
+          endUnit: unitRange[1],
+          kind: extra.kind || (isAppliedLesson(item) ? "applied" : "staged"),
+          isOverlay: Boolean(extra.isOverlay)
         });
       }
     }
-    const mergedBlocks = mergeContinuousTimetableBlocks(blocks);
-    const byDay = new Map();
-    for (const block of mergedBlocks) {
-      const dayBlocks = byDay.get(block.day) || [];
-      dayBlocks.push(block);
-      byDay.set(block.day, dayBlocks);
-    }
-    for (const dayBlocks of byDay.values()) {
-      const lanes = [];
-      dayBlocks.sort((a, b) => a.startUnit - b.startUnit || a.endUnit - b.endUnit || a.item.name.localeCompare(b.item.name, "zh-Hans-CN"));
-      for (const block of dayBlocks) {
-        let lane = lanes.findIndex((laneBlocks) => !laneBlocks.some((other) => timetableBlocksOverlap(block, other)));
-        if (lane < 0) {
-          lane = lanes.length;
-          lanes.push([]);
-        }
-        lanes[lane].push(block);
-        block.stackIndex = lane;
-      }
-      for (const block of dayBlocks) {
-        const overlapping = dayBlocks.filter((other) => timetableBlocksOverlap(block, other));
-        block.stackCount = Math.max(1, ...overlapping.map((other) => (other.stackIndex || 0) + 1));
-      }
-    }
-    return mergedBlocks;
+    return mergeContinuousTimetableBlocks(blocks)
+      .sort((a, b) => a.day - b.day || a.startUnit - b.startUnit || a.endUnit - b.endUnit || compareTimetableLayoutBlocks(a, b));
   }
 
   function timetablePreviewBlocks(item) {
@@ -1819,15 +1854,242 @@
           endMinute: range[1],
           startUnit,
           endUnit,
+          kind: "preview",
           isPreview: true,
-          stackIndex: 0,
-          stackCount: 1,
+          isCompact: true,
           previewTitle: `${dayName} ${formatUnitRanges([[startUnit, endUnit]])}节`,
           previewRoomText: "覆盖节次"
         });
       }
     }
     return blocks.sort((a, b) => a.day - b.day || a.startUnit - b.startUnit || a.endUnit - b.endUnit);
+  }
+
+  function compareTimetableLayoutBlocks(a, b) {
+    const rankA = timetableBlockPriority(a);
+    const rankB = timetableBlockPriority(b);
+    if (rankA !== rankB) return rankA - rankB;
+    if (a.startUnit !== b.startUnit) return a.startUnit - b.startUnit;
+    const durationA = (a.endUnit || a.startUnit) - (a.startUnit || 0);
+    const durationB = (b.endUnit || b.startUnit) - (b.startUnit || 0);
+    if (durationA !== durationB) return durationB - durationA;
+    const nameCompare = cleanText(a.item?.name).localeCompare(cleanText(b.item?.name), "zh-Hans-CN");
+    if (nameCompare) return nameCompare;
+    return asText(a.item?.id).localeCompare(asText(b.item?.id));
+  }
+
+  function timetableBlockPriority(block) {
+    if (block?.kind === "applied" || isAppliedLesson(block?.item)) return 0;
+    if (block?.kind === "staged" || block?.isOverlay) return 1;
+    return 2;
+  }
+
+  function layoutTimetableGroups(blocks, { maxVisibleLanes = TIMETABLE_MAX_VISIBLE_LANES } = {}) {
+    const groups = [];
+    const byDay = new Map();
+    for (const block of blocks) {
+      const bucket = byDay.get(block.day) || [];
+      bucket.push(block);
+      byDay.set(block.day, bucket);
+    }
+
+    for (const [day, dayBlocks] of [...byDay.entries()].sort((a, b) => a[0] - b[0])) {
+      const overlapGroups = collectTimetableOverlapGroups(dayBlocks);
+      overlapGroups.forEach((groupBlocks, groupIndex) => {
+        const assignedBlocks = assignTimetableGroupLanes(groupBlocks);
+        const laneCount = Math.max(1, ...assignedBlocks.map((block) => (block.layoutLaneIndex || 0) + 1));
+        const visibleLaneCount = Math.min(Math.max(1, maxVisibleLanes), laneCount);
+        const startUnit = Math.min(...assignedBlocks.map((block) => block.startUnit));
+        const endUnit = Math.max(...assignedBlocks.map((block) => block.endUnit));
+        const compactGroup = laneCount > 1 || assignedBlocks.some((block) => block.isOverlay);
+        const groupId = createTimetableGroupId(day, groupIndex, assignedBlocks);
+        const visibleBlocks = [];
+        const hiddenBlocks = [];
+
+        for (const block of assignedBlocks) {
+          const nextBlock = {
+            ...block,
+            groupId,
+            groupStartUnit: startUnit,
+            groupEndUnit: endUnit,
+            groupLaneCount: laneCount,
+            layoutLaneCount: visibleLaneCount,
+            isCompact: Boolean(block.isCompact || compactGroup),
+            isGroupMember: laneCount > 1 || Boolean(block.isOverlay)
+          };
+          if ((nextBlock.layoutLaneIndex || 0) < visibleLaneCount) visibleBlocks.push(nextBlock);
+          else hiddenBlocks.push(nextBlock);
+        }
+
+        groups.push({
+          id: groupId,
+          day,
+          startUnit,
+          endUnit,
+          laneCount,
+          visibleLaneCount,
+          visibleBlocks: visibleBlocks.sort((a, b) => (a.layoutLaneIndex || 0) - (b.layoutLaneIndex || 0) || compareTimetableLayoutBlocks(a, b)),
+          hiddenBlocks: hiddenBlocks.sort(compareTimetableLayoutBlocks),
+          isCompact: compactGroup
+        });
+      });
+    }
+
+    groups.sort((a, b) => a.day - b.day || a.startUnit - b.startUnit || a.endUnit - b.endUnit || a.id.localeCompare(b.id));
+    return {
+      groups,
+      validGroupIds: new Set(groups.map((group) => group.id))
+    };
+  }
+
+  function collectTimetableOverlapGroups(dayBlocks) {
+    const remaining = dayBlocks.slice().sort((a, b) => a.startUnit - b.startUnit || a.endUnit - b.endUnit || compareTimetableLayoutBlocks(a, b));
+    const groups = [];
+    while (remaining.length) {
+      const group = [remaining.shift()];
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (let index = remaining.length - 1; index >= 0; index -= 1) {
+          if (group.some((other) => timetableBlocksOverlap(other, remaining[index]))) {
+            group.push(remaining[index]);
+            remaining.splice(index, 1);
+            changed = true;
+          }
+        }
+      }
+      groups.push(group.sort(compareTimetableLayoutBlocks));
+    }
+    return groups.sort((a, b) => {
+      const aStart = Math.min(...a.map((block) => block.startUnit));
+      const bStart = Math.min(...b.map((block) => block.startUnit));
+      if (aStart !== bStart) return aStart - bStart;
+      const aEnd = Math.max(...a.map((block) => block.endUnit));
+      const bEnd = Math.max(...b.map((block) => block.endUnit));
+      return aEnd - bEnd;
+    });
+  }
+
+  function assignTimetableGroupLanes(groupBlocks) {
+    const chronological = groupBlocks.slice().sort((a, b) =>
+      a.startUnit - b.startUnit ||
+      a.endUnit - b.endUnit ||
+      compareTimetableLayoutBlocks(a, b)
+    );
+    const lanes = [];
+    const staged = [];
+    for (const block of chronological) {
+      let laneIndex = lanes.findIndex((laneBlocks) => !laneBlocks.some((other) => timetableBlocksOverlap(block, other)));
+      if (laneIndex < 0) {
+        laneIndex = lanes.length;
+        lanes.push([]);
+      }
+      lanes[laneIndex].push(block);
+      staged.push({ ...block, __laneIndex: laneIndex });
+    }
+
+    const laneOrder = lanes.map((laneBlocks, laneIndex) => ({
+      laneIndex,
+      keyBlock: laneBlocks.slice().sort(compareTimetableLayoutBlocks)[0],
+      earliestStart: Math.min(...laneBlocks.map((block) => block.startUnit))
+    })).sort((a, b) =>
+      compareTimetableLayoutBlocks(a.keyBlock, b.keyBlock) ||
+      a.earliestStart - b.earliestStart ||
+      a.laneIndex - b.laneIndex
+    );
+    const laneMap = new Map(laneOrder.map((lane, index) => [lane.laneIndex, index]));
+
+    return staged
+      .map(({ __laneIndex, ...block }) => ({
+        ...block,
+        layoutLaneIndex: laneMap.get(__laneIndex) || 0
+      }))
+      .sort(compareTimetableLayoutBlocks);
+  }
+
+  function createTimetableGroupId(day, index, members) {
+    const key = members
+      .map((block) => [
+        asText(block.item?.id),
+        `${block.startUnit}-${block.endUnit}`,
+        asText(block.slot?.weekState) || asText(block.slot?.weekStateDigest)
+      ].join(":"))
+      .sort()
+      .join("|");
+    return `beams-group-${day}-${index}-${hashText(key)}`;
+  }
+
+  function trimPinnedTimetableOverflowGroups(validGroupIds) {
+    if (!pinnedTimetableOverflowGroups.size) return;
+    pinnedTimetableOverflowGroups = new Set(
+      [...pinnedTimetableOverflowGroups].filter((groupId) => validGroupIds.has(groupId))
+    );
+  }
+
+  function togglePinnedTimetableOverflow(groupId) {
+    if (!groupId) return;
+    if (pinnedTimetableOverflowGroups.has(groupId)) pinnedTimetableOverflowGroups.delete(groupId);
+    else pinnedTimetableOverflowGroups.add(groupId);
+    renderPlanTimetable(panel?.querySelector('[data-role="timetable"]'));
+  }
+
+  function timetableGroupHtml(group, metrics) {
+    const top = Math.max(0, calendarUnitTopPx(group.startUnit, metrics)) + 2;
+    const height = Math.max(24, Math.round((group.endUnit - group.startUnit + 1) * metrics.rowHeight) - 4);
+    const isOpen = pinnedTimetableOverflowGroups.has(group.id);
+    const hiddenCount = group.hiddenBlocks.length;
+    return `
+      <div
+        class="beams-time-group ${isOpen ? "is-open" : ""}"
+        data-group-id="${escapeHtml(group.id)}"
+        style="top:${top}px;height:${height}px"
+      >
+        ${group.visibleBlocks.map((block) => timetableBlockHtml(block, metrics)).join("")}
+        ${hiddenCount ? `
+          <div class="beams-time-overflow ${isOpen ? "is-open" : ""}">
+            <button
+              type="button"
+              class="beams-time-overflow-toggle"
+              data-action="toggleOverflowGroup"
+              data-group-id="${escapeHtml(group.id)}"
+              title="${escapeHtml(`该时段还有 ${hiddenCount} 门重叠课程`)}"
+            >+${escapeHtml(String(hiddenCount))}</button>
+            <div class="beams-time-overflow-pop">
+              <div class="beams-time-overflow-title">同时间段的其他课程</div>
+              <div class="beams-time-overflow-list">
+                ${group.hiddenBlocks.map(timetableOverflowEntryHtml).join("")}
+              </div>
+            </div>
+          </div>
+        ` : ""}
+      </div>
+    `;
+  }
+
+  function timetableOverflowEntryHtml(block) {
+    const item = block.item;
+    const title = timetableBlockTitle(block);
+    const detailParts = [
+      timetableBlockRangeLabel(block),
+      timetableBlockTimeText(block),
+      timetableBlockWeekText(block),
+      blockRoomsText(block)
+    ].filter(Boolean);
+    return `
+      <button
+        type="button"
+        class="beams-time-overflow-entry"
+        data-action="focusLesson"
+        data-lesson-id="${escapeHtml(item.id)}"
+        title="${escapeHtml(title)}"
+      >
+        <div class="beams-time-overflow-entry-top">
+          <strong>${escapeHtml(item.name || item.no || item.code || "未命名课程")}</strong>
+          <em>${escapeHtml(timetableBlockStatus(block))}</em>
+        </div>
+        <span>${escapeHtml(detailParts.join(" · ") || "查看课程卡")}</span>
+      </button>
+    `;
   }
 
   function mergeContinuousTimetableBlocks(blocks) {
@@ -1979,33 +2241,69 @@
   function timetableBlockHtml(block, metrics) {
     const { item, slot } = block;
     const preview = Boolean(block.isPreview);
-    const stacked = !preview && block.stackCount > 1;
-    const laneWidth = preview ? 100 : 100 / Math.max(1, block.stackCount || 1);
-    const top = Math.max(0, calendarUnitTopPx(block.startUnit, metrics)) + 2;
+    const overlay = Boolean(block.isOverlay);
+    const compact = Boolean(block.isCompact || preview);
+    const inGroup = Number.isFinite(block.groupStartUnit);
+    const laneCount = preview ? 1 : Math.max(1, block.layoutLaneCount || block.groupLaneCount || 1);
+    const laneWidth = preview ? 100 : 100 / laneCount;
+    const top = inGroup ?
+      Math.max(0, Math.round((block.startUnit - block.groupStartUnit) * metrics.rowHeight)) :
+      Math.max(0, calendarUnitTopPx(block.startUnit, metrics)) + 2;
     const height = Math.max(24, Math.round((block.endUnit - block.startUnit + 1) * metrics.rowHeight) - 4);
-    const left = preview ? "3px" : `calc(${(block.stackIndex || 0) * laneWidth}% + 3px)`;
-    const width = preview ? "calc(100% - 6px)" : `calc(${laneWidth}% - 6px)`;
-    const status = preview ? "预览" : isAppliedLesson(item) ? "已选" : "暂存";
-    const timeText = formatMinuteRange(block.startMinute, block.endMinute) || formatTimeRange(slot.startTime, slot.endTime);
+    const left = preview ? "6px" : `calc(${(block.layoutLaneIndex || 0) * laneWidth}% + 3px)`;
+    const width = preview ? "calc(100% - 12px)" : `calc(${laneWidth}% - 6px)`;
+    const status = timetableBlockStatus(block);
+    const timeText = timetableBlockTimeText(block);
     const roomText = block.previewRoomText || blockRoomsText(block) || "地点未标明";
-    const weeksText = preview ? "" : asText(slot.weekStateDigest);
-    const title = block.previewTitle || uniqueValues((block.slots || [slot]).map(scheduleSlotLine).filter(Boolean)).join("；");
+    const weeksText = preview ? "" : timetableBlockWeekText(block);
+    const title = timetableBlockTitle(block);
     return `
       <div
-        class="beams-time-course ${preview ? "is-preview" : isAppliedLesson(item) ? "is-applied" : "is-staged"} ${stacked ? "has-stack" : ""}"
+        class="beams-time-course ${preview ? "is-preview" : overlay ? "is-staged-overlay" : isAppliedLesson(item) ? "is-applied" : "is-staged"} ${compact ? "is-compact" : ""} ${block.isGroupMember ? "is-group-member" : ""}"
         style="top:${top}px;height:${height}px;left:${left};width:${width}"
         title="${escapeHtml(title)}"
       >
         <div class="beams-calendar-course-top">
-          <strong>${escapeHtml(shortTimetableName(item.name))}</strong>
+          <strong>${escapeHtml(shortTimetableName(item.name, compact ? 10 : 18))}</strong>
           <em>${escapeHtml(status)}</em>
         </div>
-        <span class="beams-calendar-course-code">${escapeHtml(item.no || item.code || "")}</span>
-        <span class="beams-calendar-room">${escapeHtml(roomText)}</span>
-        <span class="beams-calendar-time">${escapeHtml(timeText)}</span>
-        ${weeksText ? `<span class="beams-calendar-weeks">${escapeHtml(`${weeksText}周`)}</span>` : ""}
+        ${compact ? "" : `
+          <span class="beams-calendar-course-code">${escapeHtml(item.no || item.code || "")}</span>
+          <span class="beams-calendar-room">${escapeHtml(roomText)}</span>
+          <span class="beams-calendar-time">${escapeHtml(timeText)}</span>
+          ${weeksText ? `<span class="beams-calendar-weeks">${escapeHtml(`${weeksText}周`)}</span>` : ""}
+        `}
       </div>
     `;
+  }
+
+  function timetableBlockStatus(block) {
+    if (block.isPreview) return "预览";
+    if (block.kind === "applied" || isAppliedLesson(block.item)) return "已选";
+    return "暂存";
+  }
+
+  function timetableBlockTimeText(block) {
+    return formatMinuteRange(block.startMinute, block.endMinute) || formatTimeRange(block.slot?.startTime, block.slot?.endTime) || timetableBlockRangeLabel(block);
+  }
+
+  function timetableBlockRangeLabel(block) {
+    return formatUnitRanges([[block.startUnit, block.endUnit]]) + "节";
+  }
+
+  function timetableBlockWeekText(block) {
+    return asText(block.slot?.weekStateDigest) || uniqueValues((block.slots || []).map((slot) => asText(slot.weekStateDigest)).filter(Boolean)).join(" / ");
+  }
+
+  function timetableBlockTitle(block) {
+    if (block.previewTitle) return `${itemLabel(block.item)}：${block.previewTitle}`;
+    const details = uniqueValues((block.slots || [block.slot]).map(scheduleSlotLine).filter(Boolean)).join("；");
+    if (details) return `${itemLabel(block.item)}：${details}`;
+    return itemLabel(block.item);
+  }
+
+  function itemLabel(item) {
+    return [item?.no || item?.code, item?.name].filter(Boolean).join(" ");
   }
 
   function blockRoomsText(block) {
@@ -2014,9 +2312,10 @@
       .filter(Boolean)).join(" / ");
   }
 
-  function shortTimetableName(value) {
+  function shortTimetableName(value, maxLength = 18) {
     const text = cleanText(value);
-    return text.length > 18 ? `${text.slice(0, 17)}...` : text;
+    if (!text) return "未命名课程";
+    return text.length > maxLength ? `${text.slice(0, Math.max(1, maxLength - 1))}...` : text;
   }
 
   function planGapLabel(gap) {
@@ -2638,92 +2937,12 @@
       ids.delete(id);
       toast("已从工作区暂存移除。");
     } else {
-      const item = currentItem;
-      const conflicts = item ? conflictingLessonsForPlan(plan, item) : [];
-      if (conflicts.length) {
-        const choice = await showPlanConflictChoice(plan, item, conflicts);
-        if (choice === "replace") {
-          replaceConflictsWithLesson(plan, item, conflicts);
-        } else {
-          toast("已保留工作区不变。");
-        }
-        return;
-      }
       ids.add(id);
       toast("已加入工作区暂存。");
     }
     plan.lessonIds = [...ids];
     writePlanStore();
     render();
-  }
-
-  function conflictingLessonsForPlan(plan, item) {
-    return lessonsInPlan(plan).filter((selected) => selected.id !== item.id && schedulesOverlap(item.arrangeInfo, selected.arrangeInfo));
-  }
-
-  function replaceConflictsWithLesson(plan, item, conflicts = []) {
-    const conflictIds = new Set(conflicts.filter((lesson) => !isAppliedLesson(lesson)).map((lesson) => lesson.id));
-    plan.lessonIds = uniqueValues([...(plan.lessonIds || []).filter((id) => !conflictIds.has(id)), item.id]);
-    writePlanStore();
-    toast("已替换工作区里的冲突暂存课程。");
-    render();
-  }
-
-  function showPlanConflictChoice(plan, item, conflicts) {
-    closeActionConfirm(false);
-
-    const stagedConflicts = conflicts.filter((lesson) => !isAppliedLesson(lesson));
-    const appliedConflicts = conflicts.filter(isAppliedLesson);
-    const canReplace = stagedConflicts.length && !appliedConflicts.length;
-    const overlay = document.createElement("div");
-    overlay.id = `${APP_ID}-confirm`;
-    overlay.className = "beams-confirm-overlay";
-    overlay.innerHTML = `
-      <section class="beams-confirm-dialog beams-plan-conflict-dialog" role="dialog" aria-modal="true" aria-labelledby="${APP_ID}-plan-conflict-title">
-        <div class="beams-confirm-head">
-          <strong id="${APP_ID}-plan-conflict-title">当前工作区存在时间冲突</strong>
-          <button type="button" class="beams-confirm-close" data-plan-conflict-action="cancel" title="关闭">×</button>
-        </div>
-        <div class="beams-confirm-body">
-          <p class="beams-confirm-summary">${escapeHtml(canReplace ?
-            "BetterEAMS 会让当前工作区尽量保持可直接提交。你可以用这门课替换掉冲突的本地暂存课程。" :
-            "这门课和已选课程冲突。如需选择这门课，请先退掉冲突的已选课程。")}</p>
-          <dl>
-            <div><dt>要加入</dt><dd>${escapeHtml(item.name || item.no || item.id)}</dd></div>
-            <div><dt>冲突课程</dt><dd>${escapeHtml(conflicts.map((lesson) => `${lesson.no || lesson.code} ${lesson.name}`).join("；"))}</dd></div>
-            <div><dt>工作区</dt><dd>当前工作区</dd></div>
-          </dl>
-        </div>
-        <div class="beams-confirm-actions">
-          <button type="button" data-plan-conflict-action="cancel">取消</button>
-          ${canReplace ? '<button type="button" class="is-primary" data-plan-conflict-action="replace">替换冲突暂存课</button>' : ""}
-        </div>
-      </section>
-    `;
-
-    document.body.appendChild(overlay);
-
-    return new Promise((resolve) => {
-      const finish = (value) => {
-        overlay.remove();
-        document.removeEventListener("keydown", onKeyDown, true);
-        resolve(value);
-      };
-      const onKeyDown = (event) => {
-        if (event.key === "Escape") finish("cancel");
-      };
-
-      overlay.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const action = event.target.closest("[data-plan-conflict-action]")?.dataset.planConflictAction;
-        if (action === "cancel" || event.target === overlay) finish("cancel");
-        if (action === "replace") finish("replace");
-      });
-      document.addEventListener("keydown", onKeyDown, true);
-      (overlay.querySelector('[data-plan-conflict-action="replace"]') ||
-        overlay.querySelector('[data-plan-conflict-action="cancel"]'))?.focus();
-    });
   }
 
   async function applyActivePlanToEams() {
@@ -2734,7 +2953,7 @@
     if (conflicts.length) {
       showActionResult(
         "工作区暂不能一键选课",
-        `当前工作区仍有 ${conflicts.length} 组时间冲突。请先移除或替换冲突的暂存课程；如果冲突来自已选课程，需要先退课或不要提交这门暂存课。`,
+        `当前工作区仍有 ${conflicts.length} 组时间冲突。请先整理掉冲突的暂存课程；如果冲突来自已选课程，需要先退课或不要提交这门暂存课。`,
         "error"
       );
       return;
@@ -2815,6 +3034,31 @@
     const item = lessons.find((lesson) => lesson.id === id);
     const row = item ? await ensureOriginalRow(item) : null;
     flashOriginalRow(row);
+  }
+
+  function focusLessonCard(id) {
+    if (!panel || !id) return;
+    const card = panel.querySelector(`.beams-card[data-lesson-id="${cssEscape(id)}"]`);
+    if (!card) {
+      const item = lessonById(id);
+      toast(item ? `${item.name || item.no || item.code} 当前被筛选隐藏了。` : "当前列表里没有找到这门课。");
+      return;
+    }
+
+    const listNode = panel.querySelector('[data-role="list"]');
+    if (listNode?.contains(card)) {
+      const listRect = listNode.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const targetTop = listNode.scrollTop + (cardRect.top - listRect.top) - Math.max(0, (listRect.height - cardRect.height) / 2);
+      listNode.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+    } else {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    card.classList.remove("is-linked-focus");
+    void card.offsetWidth;
+    card.classList.add("is-linked-focus");
+    setTimeout(() => card.classList.remove("is-linked-focus"), 1600);
   }
 
   function flashOriginalRow(row) {
@@ -4552,6 +4796,11 @@
         height: 27px;
         padding: 0 7px;
       }
+      .beams-tools button.is-staged-visibility-active {
+        border-color: #7dd3fc;
+        background: #e0f2fe;
+        color: #075985;
+      }
       .beams-tools .beams-apply-plan {
         border-color: var(--beams-accent);
         background: var(--beams-accent);
@@ -4704,9 +4953,25 @@
         background: #e0f2fe;
         border-left: 3px solid #0284c7;
       }
+      .beams-calendar-legend b.is-staged-overlay {
+        background: rgba(224, 242, 254, 0.44);
+        border-left: 3px solid rgba(2, 132, 199, 0.72);
+      }
       .beams-calendar-legend b.is-preview {
         background: rgba(254, 243, 199, 0.56);
         border: 1px dashed rgba(217, 119, 6, 0.58);
+      }
+      .beams-staged-hint {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 1px 7px;
+        background: #eff6ff;
+        color: #1d4ed8 !important;
+        font-size: 11px;
+        line-height: 1.2;
+        height: 18px;
+        box-sizing: border-box;
       }
       .beams-preview-label {
         display: inline-flex;
@@ -4718,10 +4983,17 @@
         color: #92400e !important;
         font-size: 11px;
         line-height: 1.2;
-        min-height: 18px;
+        height: 18px;
+        box-sizing: border-box;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+      .beams-preview-label.is-empty {
+        visibility: hidden;
+        max-width: 0;
+        padding-left: 0;
+        padding-right: 0;
       }
       .beams-calendar-scroll {
         min-height: 0;
@@ -4782,7 +5054,7 @@
         background:
           linear-gradient(to right, rgba(216, 222, 232, 0.55) 0, transparent 1px),
           #fff;
-        overflow: hidden;
+        overflow: visible;
       }
       .beams-calendar-hour-line {
         position: absolute;
@@ -4795,7 +5067,7 @@
       .beams-calendar-cell-layer {
         position: absolute;
         inset: 0;
-        z-index: 5;
+        z-index: 1;
       }
       .beams-calendar-hit-cell {
         position: absolute;
@@ -4824,14 +5096,16 @@
       }
       .beams-time-course {
         position: absolute;
-        z-index: 2;
+        z-index: 3;
         border-left: 3px solid #0284c7;
         border-radius: 6px;
-        padding: 3px 4px;
+        padding: 4px 5px;
         background: rgba(224, 242, 254, 0.86);
         color: #075985;
         overflow: hidden;
         box-shadow: 0 1px 4px rgba(15, 23, 42, 0.10);
+        pointer-events: auto;
+        transition: opacity .12s ease, box-shadow .12s ease, transform .12s ease, filter .12s ease;
       }
       .beams-time-course.is-applied {
         border-left-color: #059669;
@@ -4841,14 +5115,161 @@
       .beams-time-course.is-staged {
         border-left-color: #0284c7;
       }
-      .beams-time-course.is-preview {
+      .beams-time-course.is-staged-overlay {
         z-index: 4;
-        border: 1px dashed rgba(217, 119, 6, 0.46);
-        border-left: 4px solid rgba(217, 119, 6, 0.68);
-        background: rgba(254, 243, 199, 0.46);
+        border: 1px solid rgba(2, 132, 199, 0.34);
+        border-left: 3px solid rgba(2, 132, 199, 0.74);
+        background: rgba(224, 242, 254, 0.22);
+        color: #075985;
+        box-shadow: 0 0 0 1px rgba(2, 132, 199, 0.08), 0 1px 4px rgba(15, 23, 42, 0.06);
+      }
+      .beams-time-course.is-preview {
+        z-index: 7;
+        border: 1px dashed rgba(217, 119, 6, 0.38);
+        border-left: 3px solid rgba(217, 119, 6, 0.62);
+        background: rgba(254, 243, 199, 0.22);
         color: #92400e;
         pointer-events: none;
-        box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.08), 0 1px 4px rgba(15, 23, 42, 0.08);
+        box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.04), 0 1px 4px rgba(15, 23, 42, 0.06);
+      }
+      .beams-time-group {
+        position: absolute;
+        left: 0;
+        right: 0;
+        z-index: 3;
+        pointer-events: none;
+        overflow: visible;
+      }
+      .beams-time-group.is-open {
+        z-index: 6;
+      }
+      .beams-time-group:hover .beams-time-course.is-group-member {
+        opacity: 0.46;
+        filter: saturate(0.82);
+      }
+      .beams-time-group:hover .beams-time-course.is-group-member:hover {
+        opacity: 1;
+        filter: none;
+      }
+      .beams-time-course:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.14);
+      }
+      .beams-time-course.is-compact {
+        padding: 4px;
+      }
+      .beams-time-course.is-compact .beams-calendar-course-top {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+      }
+      .beams-time-course.is-compact strong {
+        line-height: 1.2;
+      }
+      .beams-time-course.is-compact em {
+        align-self: flex-start;
+      }
+      .beams-time-overflow {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        z-index: 8;
+        pointer-events: auto;
+      }
+      .beams-time-overflow-toggle {
+        min-width: 24px;
+        height: 18px;
+        border: 1px solid rgba(148, 163, 184, 0.48);
+        border-radius: 999px;
+        padding: 0 6px;
+        background: rgba(255, 255, 255, 0.95);
+        color: #334155;
+        font-size: 10px;
+        line-height: 1;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.10);
+      }
+      .beams-time-overflow-toggle:hover {
+        background: #fff;
+      }
+      .beams-time-overflow-pop {
+        position: absolute;
+        top: 22px;
+        right: 0;
+        width: 210px;
+        max-width: min(220px, 48vw);
+        display: grid;
+        gap: 6px;
+        border: 1px solid rgba(203, 213, 225, 0.9);
+        border-radius: 8px;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.98);
+        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.16);
+        opacity: 0;
+        transform: translateY(-4px);
+        pointer-events: none;
+        transition: opacity .12s ease, transform .12s ease;
+      }
+      .beams-time-overflow:hover .beams-time-overflow-pop,
+      .beams-time-overflow.is-open .beams-time-overflow-pop,
+      .beams-time-group.is-open .beams-time-overflow-pop {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+      }
+      .beams-time-overflow-title {
+        color: #475569;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .beams-time-overflow-list {
+        display: grid;
+        gap: 5px;
+      }
+      .beams-time-overflow-entry {
+        display: grid;
+        gap: 2px;
+        width: 100%;
+        border: 1px solid rgba(226, 232, 240, 0.95);
+        border-radius: 7px;
+        padding: 6px 7px;
+        background: #fff;
+        color: #0f172a;
+        text-align: left;
+      }
+      .beams-time-overflow-entry:hover {
+        border-color: rgba(2, 132, 199, 0.34);
+        background: #f8fbff;
+      }
+      .beams-time-overflow-entry-top {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+      }
+      .beams-time-overflow-entry strong,
+      .beams-time-overflow-entry span {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .beams-time-overflow-entry strong {
+        flex: 1;
+        font-size: 11px;
+      }
+      .beams-time-overflow-entry em {
+        flex: 0 0 auto;
+        border-radius: 999px;
+        padding: 1px 4px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 9px;
+        font-style: normal;
+        line-height: 1.35;
+      }
+      .beams-time-overflow-entry span {
+        color: #64748b;
+        font-size: 10px;
       }
       .beams-time-course.has-stack {
         outline: 1px solid rgba(180, 83, 9, 0.25);
@@ -5003,6 +5424,10 @@
       .beams-card.is-preview-source {
         border-color: rgba(217, 119, 6, 0.52);
         box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.12);
+      }
+      .beams-card.is-linked-focus {
+        border-color: rgba(29, 78, 216, 0.5);
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
       }
       .beams-card-main {
         display: flex;
