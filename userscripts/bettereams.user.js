@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         BetterEAMS
 // @namespace    https://github.com/henryli/bettereams
-// @version      0.9.10
+// @version      0.9.11
 // @description  Improve ShanghaiTech EAMS course search, filtering, layout, favorites, and schedule conflict checks.
 // @author       BetterEAMS
 // @homepageURL  https://github.com/Maotechh/BetterEAMS
@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.10";
+  const APP_VERSION = "0.9.11";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -2702,7 +2702,10 @@
     const item = lessons.find((lesson) => lesson.id === id);
     if (!item) return;
 
-    if (requestedKind === "detail" && openDirectSyllabus(item)) {
+    if (requestedKind === "detail") {
+      if (openDirectSyllabus(item)) return;
+      if (await openOriginalDetailAction(item, originIndex)) return;
+      toast("没有检测到课程详情入口。");
       return;
     }
     if (requestedKind === "teacher") {
@@ -2880,6 +2883,42 @@
     return true;
   }
 
+  async function openOriginalDetailAction(item, originIndex) {
+    const row = await ensureOriginalRow(item);
+    if (!row) return false;
+
+    const headers = headersForRow(row);
+    const actions = collectOriginalActions(item);
+    const parsedIndex = Number(originIndex);
+    const indexedAction = Number.isInteger(parsedIndex) && parsedIndex >= 0 ? actions[parsedIndex] : null;
+    const fallbackActions = actions.filter((action) => action.kind === "detail" || action.kind === "view");
+    const nameColumnActions = actions.filter((action) => /课程名称|名称|Course\s*Title|Course\s*Name/i.test(headers[action.cellIndex] || ""));
+    const candidates = [indexedAction, ...fallbackActions, ...nameColumnActions].filter(Boolean);
+    const seen = new Set();
+
+    for (const action of candidates) {
+      const signature = action.element;
+      if (!signature || seen.has(signature)) continue;
+      seen.add(signature);
+      if (openOriginalActionElement(action.element)) {
+        toast(`已打开 ${item.no || item.name} 的课程详情。`);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function openOriginalActionElement(element) {
+    if (!element) return false;
+    const url = navigableUrlFromElement(element);
+    if (url) {
+      window.open(url, "_blank", "noopener");
+      return true;
+    }
+    activateElement(element);
+    return true;
+  }
+
   function openTeacherProfile(item) {
     const url = teacherProfileUrl(item);
     if (!url) {
@@ -2934,6 +2973,24 @@
     return actionUrlFromElement({ href, onclick }, /teacherInfo\.action/i);
   }
 
+  function normalizeNavigableUrl(pathOrUrl) {
+    const value = asText(pathOrUrl).replace(/&amp;/g, "&").trim();
+    if (!value || value === "#" || /^javascript:/i.test(value)) return "";
+    if (/^https?:\/\//i.test(value)) return value;
+    if (/^[\w-]+(?:![\w-]+)?\.action(?:[?#]|$)/i.test(value)) return `/eams/${value}`;
+    return value;
+  }
+
+  function navigableUrlFromElement(elementOrParts) {
+    const href = typeof elementOrParts.getAttribute === "function" ? elementOrParts.getAttribute("href") || "" : elementOrParts.href || "";
+    const normalizedHref = normalizeNavigableUrl(href);
+    if (normalizedHref) return localizedEamsUrl(normalizedHref);
+
+    const onclick = typeof elementOrParts.getAttribute === "function" ? elementOrParts.getAttribute("onclick") || "" : elementOrParts.onclick || "";
+    const match = onclick.match(/["']([^"']*(?:\/eams\/|\.action(?:\?|['"]|$)|graduate\.shanghaitech\.edu\.cn)[^"']*)["']/i);
+    return match ? localizedEamsUrl(normalizeNavigableUrl(match[1])) : "";
+  }
+
   function actionUrlFromElement(elementOrParts, pattern) {
     const href = typeof elementOrParts.getAttribute === "function" ? elementOrParts.getAttribute("href") || "" : elementOrParts.href || "";
     if (/^https?:\/\//i.test(href) && pattern.test(href)) return new URL(href, location.href).href;
@@ -2941,7 +2998,7 @@
     const onclick = typeof elementOrParts.getAttribute === "function" ? elementOrParts.getAttribute("onclick") || "" : elementOrParts.onclick || "";
     const match = onclick.match(/["']([^"']+)["']/g)?.map((value) => value.slice(1, -1)).find((value) => pattern.test(value)) ||
       (pattern.test(href) ? href : "");
-    return match ? localizedEamsUrl(match.replace(/&amp;/g, "&")) : "";
+    return match ? localizedEamsUrl(normalizeNavigableUrl(match)) : "";
   }
 
   async function triggerApiAction(item, kind, options = {}) {
