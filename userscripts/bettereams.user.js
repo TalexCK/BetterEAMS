@@ -5115,7 +5115,8 @@
         flex: 1 1 auto;
         border: 1px solid var(--beams-border);
         border-radius: 7px;
-        overflow: hidden;
+        overflow-x: hidden;
+        overflow-y: auto;
         background: #fff;
       }
       .beams-calendar-head-row {
@@ -6217,7 +6218,6 @@
         .beams-left-pane,
         .beams-right-pane,
         .beams-timetable,
-        .beams-calendar-scroll,
         .beams-list {
           overflow: visible;
         }
