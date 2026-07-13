@@ -40,6 +40,34 @@
     "毕业要求",
     "总学分"
   ]);
+  const CATEGORY_RANK = {
+    unknown: 0,
+    raw: 40,
+    rawCategory: 50,
+    tableCell: 70,
+    tableContext: 90
+  };
+  const COURSE_CATEGORY_PATTERNS = [
+    [/跨学院\s*选修(?:\s*方向)?(?:\s*课程)?/, "跨学院选修"],
+    [/专业\s*方向\s*必修(?:\s*课程)?/, "专业方向必修"],
+    [/专业\s*方向\s*选修(?:\s*课程)?/, "专业方向选修"],
+    [/专业\s*方向(?:\s*课程)?/, "专业方向"],
+    [/自然科学\s*基础\s*选修(?:\s*课程)?/, "自然科学基础选修"],
+    [/人文社科\s*通识\s*课程/, "人文社科通识课程"],
+    [/自然科学\s*通识\s*课程/, "自然科学通识课程"],
+    [/通识\s*教育\s*课程/, "通识教育课程"],
+    [/专业\s*必修(?:\s*课程)?/, "专业必修"],
+    [/专业\s*选修(?:\s*课程)?/, "专业选修"],
+    [/本学科\s*选修(?:\s*课程)?/, "本学科选修"],
+    [/体育\s*兴趣(?:\s*课程)?/, "体育兴趣"],
+    [/创新\s*创业(?:\s*课程)?/, "创新创业"],
+    [/写作(?:\s*课程)?/, "写作"],
+    [/导读(?:\s*课程)?/, "导读"],
+    [/任意\s*选修|任选/, "任意选修"],
+    [/课程群/, "课程群"],
+    [/必修\s*课程/, "必修课程"],
+    [/选修\s*课程/, "选修课程"]
+  ];
   const ACTIONABLE_PLAN_GROUP_HINT = /课程群|选修|体育兴趣|跨学院|创新创业|写作|导读|专业方向/;
   const GENERIC_PLAN_GROUP_FIELD = /^(课程|课程类别|选修|选修课|必修|必修课|通识|专业|全校|不限|任选)$/;
   const DAYS = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -557,6 +585,9 @@
     const capacity = parseCapacity(byHeader([/已选\/上限|已选.*上限|人数|容量/]) || "");
 
     const teacherText = byHeader([/教师|老师|主讲/]);
+    const cellCategory = byHeader([/^课程类别$|^类别$|^课程性质$|^性质$/]);
+    const contextCategory = lessonCategoryFromRow(row, cellCategory);
+    const category = contextCategory || cellCategory;
     return {
       ...lessonStateFromRow(row, headers),
       no: byHeader([/^课程序号$|^教学班$|^课号$|^编号$|^Number$/i]) || codeLike,
@@ -564,7 +595,11 @@
       name: byHeader([/^课程名称$|^名称$|^Course\s*Title$|^Course\s*Name$/i]) || guessNameFromCells(cells, codeLike),
       teachers: teacherText,
       teachDepartName: byHeader([/^开课院系$|^院系$|^部门$|^单位$/]),
-      courseTypeName: byHeader([/^课程类别$|^类别$|^课程性质$|^性质$/]),
+      category,
+      courseTypeName: category,
+      sourceCourseTypeName: cellCategory,
+      __categoryRank: contextCategory ? CATEGORY_RANK.tableContext : cellCategory ? CATEGORY_RANK.tableCell : CATEGORY_RANK.unknown,
+      __categorySource: contextCategory ? "table-context" : cellCategory ? "table-cell" : "",
       credits: byHeader([/^学分$|^Credits?$/i]) || creditLike,
       gradeRecord: byHeader([/^成绩记录|^成绩记载方式$|^考核方式$|^评分方式$|^等级$/]),
       teachClassName: byHeader([/^面向对象$|^教学班$|^班级$|^专业$|^年级$|^建议修读对象$/]),
@@ -673,6 +708,120 @@
     return result;
   }
 
+  function lessonCategoryFromRow(row, cellCategory = "") {
+    if (!row) return "";
+    const table = row.closest("table");
+    const candidates = [];
+
+    candidates.push(...courseCategoryAttributeTexts(row));
+    if (table) {
+      candidates.push(...courseCategoryAttributeTexts(table));
+      candidates.push(cleanText(table.caption?.textContent || ""));
+      candidates.push(...courseCategoryNearbyTexts(table));
+      candidates.push(...courseCategoryControlTexts(table));
+      if (table.id === "electGroupResultsTable") {
+        candidates.push(cleanText(document.querySelector("#electDescription")?.textContent || ""));
+        candidates.push(...selectedCourseCategoryControlTexts());
+      }
+      if (table.id === "requiredCourse") candidates.push("专业必修");
+    }
+
+    const cellLabel = courseCategoryLabel(cellCategory);
+    const seen = new Set();
+    for (const candidate of candidates) {
+      const text = cleanText(candidate);
+      if (!text || seen.has(text)) continue;
+      seen.add(text);
+      if (!isCourseCategoryContextText(text)) continue;
+      const label = courseCategoryLabel(text);
+      if (label && label !== cellLabel) return label;
+      if (label) return label;
+    }
+    return "";
+  }
+
+  function courseCategoryAttributeTexts(element) {
+    if (!element?.getAttribute) return [];
+    return [
+      "data-category",
+      "data-course-category",
+      "data-course-type",
+      "data-group",
+      "data-group-name",
+      "title",
+      "aria-label"
+    ].map((name) => cleanText(element.getAttribute(name) || "")).filter(Boolean);
+  }
+
+  function courseCategoryNearbyTexts(element) {
+    const texts = [];
+    let current = element;
+    for (let depth = 0; current && depth < 5; depth += 1, current = current.parentElement) {
+      let sibling = current.previousElementSibling;
+      for (let count = 0; sibling && count < 8; count += 1, sibling = sibling.previousElementSibling) {
+        const text = cleanText(sibling.textContent || "");
+        if (isCourseCategoryContextText(text)) texts.push(text);
+      }
+      const heading = current.parentElement?.querySelector(":scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > legend, :scope > .title, :scope > .grid-title, :scope > .elect-title");
+      const headingText = cleanText(heading?.textContent || "");
+      if (isCourseCategoryContextText(headingText)) texts.push(headingText);
+    }
+    return texts;
+  }
+
+  function courseCategoryControlTexts(element) {
+    const texts = [];
+    const ids = [];
+    for (let current = element; current && current !== document.body; current = current.parentElement) {
+      if (current.id) ids.push(current.id);
+      const labelledBy = cleanText(current.getAttribute?.("aria-labelledby") || "");
+      if (labelledBy) ids.push(labelledBy);
+    }
+    for (const id of uniqueValues(ids)) {
+      const escaped = cssEscape(id);
+      const controls = [
+        ...document.querySelectorAll(`[href="#${escaped}"], [aria-controls="${escaped}"], [data-target="#${escaped}"], [data-target="${escaped}"]`),
+        document.getElementById(id)
+      ].filter(Boolean);
+      for (const control of controls) {
+        const text = cleanText(control.textContent || control.getAttribute?.("title") || control.getAttribute?.("aria-label") || "");
+        if (isCourseCategoryContextText(text)) texts.push(text);
+      }
+    }
+    return texts;
+  }
+
+  function selectedCourseCategoryControlTexts() {
+    const texts = [];
+    for (const option of document.querySelectorAll("select option:checked")) {
+      const text = cleanText(option.textContent || "");
+      if (isCourseCategoryContextText(text)) texts.push(text);
+    }
+    for (const input of document.querySelectorAll("input[type='radio']:checked, input[type='checkbox']:checked")) {
+      const id = input.id ? cssEscape(input.id) : "";
+      const label = input.closest("label") || (id ? document.querySelector(`label[for="${id}"]`) : null);
+      const text = cleanText(label?.textContent || input.getAttribute("title") || "");
+      if (isCourseCategoryContextText(text)) texts.push(text);
+    }
+    return texts;
+  }
+
+  function isCourseCategoryContextText(text) {
+    const value = cleanText(text);
+    if (!value || value.length > 260) return false;
+    if (/课程序号|课程代码|课程名称|教师姓名|已选\/上限|课程安排/.test(value)) return false;
+    return Boolean(courseCategoryLabel(value));
+  }
+
+  function courseCategoryLabel(text) {
+    const value = cleanText(text);
+    if (!value) return "";
+    for (const [pattern, label] of COURSE_CATEGORY_PATTERNS) {
+      if (pattern.test(value)) return label;
+    }
+    return "";
+  }
+
   function guessNameFromCells(cells, codeLike) {
     const candidates = cells.filter((value) => value && value !== codeLike && !/^\d+(?:\.\d+)?$/.test(value));
     return candidates.sort((a, b) => b.length - a.length)[0] || "";
@@ -683,7 +832,8 @@
     const rawId = asText(raw.id || raw.lessonId || "");
     const code = asText(raw.code || raw.courseCode || raw.no).replace(/\.\d+$/, "");
     const no = asText(raw.no || raw.lessonNo || raw.code || code);
-    const category = asText(raw.courseTypeName || raw.category || raw.type || raw.courseType || "未分类");
+    const categoryInfo = normalizeLessonCategory(raw);
+    const category = categoryInfo.value || "未分类";
     const dept = asText(raw.teachDepartName || raw.department || raw.dept || "未标明院系");
     const teachers = normalizeTeachers(raw.teachers || raw.teacherName || raw.teacher || "");
     const bLimit = toNumber(raw.bstdLimit);
@@ -712,6 +862,9 @@
       name: asText(raw.name || raw.courseName || ""),
       credits: toNumber(raw.credits),
       category,
+      categorySource: categoryInfo.source,
+      categorySourceRank: categoryInfo.rank,
+      sourceCourseTypeName: asText(raw.sourceCourseTypeName || raw.courseTypeName || raw.courseType || ""),
       dept,
       teachers,
       gradeRecord: asText(raw.gradeRecord || raw.examModeName || raw.scoreType || ""),
@@ -744,6 +897,23 @@
     return item;
   }
 
+  function normalizeLessonCategory(raw = {}) {
+    const explicitRank = Number(raw.__categoryRank);
+    const rankedValue = (value, fallbackRank, source) => ({
+      value: asText(value),
+      rank: Number.isFinite(explicitRank) ? explicitRank : fallbackRank,
+      source: asText(raw.__categorySource || source)
+    });
+    const candidates = [
+      rankedValue(raw.category, CATEGORY_RANK.rawCategory, "category"),
+      rankedValue(raw.displayCategory || raw.electionCategory, CATEGORY_RANK.rawCategory, "display-category"),
+      rankedValue(raw.courseTypeName, CATEGORY_RANK.raw, "courseTypeName"),
+      rankedValue(raw.type || raw.courseType, CATEGORY_RANK.raw, "courseType")
+    ].filter((item) => item.value && item.value !== "未分类");
+    candidates.sort((a, b) => b.rank - a.rank);
+    return candidates[0] || { value: "", rank: CATEGORY_RANK.unknown, source: "" };
+  }
+
   function normalizeTeachers(value) {
     if (Array.isArray(value)) return value.map(asText).filter(Boolean);
     return asText(value).split(/[,，;；、]+/).map((item) => item.trim()).filter(Boolean);
@@ -758,6 +928,7 @@
         item.code,
         item.name,
         item.category,
+        item.sourceCourseTypeName,
         item.dept,
         item.teachers?.join(" "),
         item.gradeRecord,
@@ -825,12 +996,13 @@
     if (source.searchExtras && !normalizeSearchText(target.searchExtras).includes(normalizeSearchText(source.searchExtras))) {
       target.searchExtras = `${asText(target.searchExtras)} ${source.searchExtras}`.trim();
     }
+    mergeLessonCategory(target, source);
     if (source.teachers?.length && !target.teachers?.length) target.teachers = source.teachers;
     if (source.arrangeInfo?.length && !target.arrangeInfo?.length) target.arrangeInfo = source.arrangeInfo;
     for (const key of ["teachClassName", "preRequirement", "remark", "similarcourses", "scheduleText", "syllabusUrl", "teacherProfileUrl"]) {
       if (!target[key] && source[key]) target[key] = source[key];
     }
-    for (const key of ["name", "no", "code", "category", "dept", "gradeRecord", "campus", "courseMoldName"]) {
+    for (const key of ["name", "no", "code", "dept", "gradeRecord", "campus", "courseMoldName"]) {
       if ((!target[key] || /未分类|未标明院系/.test(target[key]) || isPlaceholderLessonName(target, key)) && source[key]) target[key] = source[key];
     }
     for (const key of ["scheduled"]) {
@@ -852,6 +1024,38 @@
       target.hasCapacity = source.hasCapacity;
     }
     rebuildLessonSearchData(target);
+  }
+
+  function mergeLessonCategory(target, source) {
+    const sourceCategory = asText(source.category);
+    if (!sourceCategory || sourceCategory === "未分类") return;
+
+    const targetCategory = asText(target.category);
+    const sourceRank = lessonCategoryRank(source);
+    const targetRank = lessonCategoryRank(target);
+    const shouldReplace = !targetCategory ||
+      targetCategory === "未分类" ||
+      sourceRank > targetRank ||
+      sourceRank === targetRank && source.row && document.contains(source.row) && !(target.row && document.contains(target.row));
+
+    if (shouldReplace) {
+      target.category = sourceCategory;
+      target.categorySource = source.categorySource || target.categorySource || "";
+      target.categorySourceRank = sourceRank;
+    }
+
+    target.categoryCandidates = uniqueValues([
+      ...(Array.isArray(target.categoryCandidates) ? target.categoryCandidates : []),
+      targetCategory,
+      sourceCategory
+    ]);
+  }
+
+  function lessonCategoryRank(item) {
+    const rank = Number(item?.categorySourceRank);
+    if (Number.isFinite(rank)) return rank;
+    if (item?.row && document.contains(item.row)) return CATEGORY_RANK.tableCell;
+    return CATEGORY_RANK.raw;
   }
 
   function hasReliableState(item) {
@@ -4659,6 +4863,9 @@
       no: item.no,
       code: item.code,
       name: item.name,
+      category: item.category,
+      categorySource: item.categorySource,
+      sourceCourseTypeName: item.sourceCourseTypeName,
       elected: item.elected,
       preElect: item.preElect,
       electable: item.electable,
