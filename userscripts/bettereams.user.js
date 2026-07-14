@@ -21,7 +21,7 @@
   "use strict";
 
   const APP_ID = "better-eams";
-  const APP_VERSION = "0.9.25";
+  const APP_VERSION = "0.9.26";
   const STORAGE_KEY = `${APP_ID}:state:v1`;
   const FAVORITES_KEY = `${APP_ID}:favorites:v1`;
   const PLANS_KEY = `${APP_ID}:plans:v1`;
@@ -44,8 +44,10 @@
     unknown: 0,
     raw: 40,
     rawCategory: 50,
-    tableCell: 70,
-    tableContext: 90
+    studentFallback: 80,
+    tableCell: 90,
+    tableContext: 100,
+    studentPlan: 120
   };
   const COURSE_CATEGORY_PATTERNS = [
     [/跨学院\s*选修(?:\s*方向)?(?:\s*课程)?/, "跨学院选修"],
@@ -124,6 +126,7 @@
   let apiTemplates = readJson(API_TEMPLATES_KEY, []);
   let lessonCatalog = new Map();
   let lessons = [];
+  let studentCourseCategories = emptyStudentCourseCategories();
   let rowIndex = new Map();
   let rowHeaderCache = new WeakMap();
   let electionState = emptyElectionState();
@@ -349,10 +352,88 @@
     }
   }
 
+  function emptyStudentCourseCategories() {
+    return {
+      available: false,
+      byCourseId: new Map(),
+      fallback: "",
+      source: ""
+    };
+  }
+
+  // EAMS renders the student-specific plan category by courseId, then falls back to course type 84.
+  function parseStudentCourseCategories(pageWindow) {
+    const result = emptyStudentCourseCategories();
+    const courseTable = pageWindow?.electCourseTable;
+    const planMap = courseTable?.planCourseTypeMap;
+    const courseTypeMap = courseTable?.courseTypeMap;
+
+    if (planMap && typeof planMap === "object") {
+      result.available = true;
+      addStudentCourseCategoryEntries(result.byCourseId, planMap);
+      if (result.byCourseId.size) result.source = "page-plan-course-type-map";
+    }
+    result.fallback = courseCategoryMapValue(courseTypeMap, "84");
+
+    const scriptText = [...document.scripts].map((script) => script.textContent || "").join("\n");
+    if (!result.available && /\b(?:var\s+)?planCourseTypeMap\s*=/.test(scriptText)) {
+      result.available = true;
+    }
+
+    const scriptPlanMap = parseCourseCategoryMapAssignments(scriptText, "planCourseTypeMap");
+    if (scriptPlanMap.size) {
+      for (const [courseId, category] of scriptPlanMap) {
+        if (!result.byCourseId.has(courseId)) result.byCourseId.set(courseId, category);
+      }
+      if (!result.source) result.source = "script-plan-course-type-map";
+    }
+
+    if (!result.fallback) {
+      result.fallback = parseCourseCategoryMapAssignments(scriptText, "courseTypeMap").get("84") || "";
+    }
+    return result;
+  }
+
+  function addStudentCourseCategoryEntries(target, source) {
+    if (!source || typeof source !== "object") return;
+    for (const [key, value] of Object.entries(source)) {
+      const courseId = asText(key).match(/^t(\d+)$/)?.[1];
+      const category = asText(value);
+      if (courseId && category) target.set(courseId, category);
+    }
+  }
+
+  function courseCategoryMapValue(source, courseId) {
+    if (!source || typeof source !== "object") return "";
+    return asText(source[`t${courseId}`]);
+  }
+
+  function parseCourseCategoryMapAssignments(text, variableName) {
+    const result = new Map();
+    const pattern = new RegExp(`${escapeRegExp(variableName)}\\s*\\[\\s*["']t(\\d+)["']\\s*\\]\\s*=\\s*(["'])((?:\\\\.|[^\\\\])*?)\\2\\s*;`, "g");
+    let match;
+    while ((match = pattern.exec(text))) {
+      const category = decodeJsStringBody(match[3]);
+      if (category) result.set(match[1], category);
+    }
+    return result;
+  }
+
+  function decodeJsStringBody(value) {
+    return asText(value)
+      .replace(/\\u([0-9a-f]{4})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
+      .replace(/\\x([0-9a-f]{2})/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
+      .replace(/\\n/g, "\n")
+      .replace(/\\r/g, "\r")
+      .replace(/\\t/g, "\t")
+      .replace(/\\(["'\\])/g, "$1");
+  }
+
   function refreshLessons() {
     rowHeaderCache = new WeakMap();
     electionState = parseElectionState();
     pageMeta = parsePageMeta();
+    studentCourseCategories = parseStudentCourseCategories(getPageWindow());
     const found = collectLessons();
     lessons = mergeIntoCatalog(found.map(normalizeLesson));
     rowIndex = indexRows(lessons);
@@ -905,13 +986,35 @@
       source: asText(raw.__categorySource || source)
     });
     const candidates = [
+      studentCourseCategoryForRaw(raw),
       rankedValue(raw.category, CATEGORY_RANK.rawCategory, "category"),
       rankedValue(raw.displayCategory || raw.electionCategory, CATEGORY_RANK.rawCategory, "display-category"),
       rankedValue(raw.courseTypeName, CATEGORY_RANK.raw, "courseTypeName"),
       rankedValue(raw.type || raw.courseType, CATEGORY_RANK.raw, "courseType")
-    ].filter((item) => item.value && item.value !== "未分类");
+    ].filter((item) => item && item.value && item.value !== "未分类");
     candidates.sort((a, b) => b.rank - a.rank);
     return candidates[0] || { value: "", rank: CATEGORY_RANK.unknown, source: "" };
+  }
+
+  function studentCourseCategoryForRaw(raw = {}) {
+    if (!studentCourseCategories.available) return null;
+    const courseId = asText(raw.courseId || raw.course?.id).match(/\d+/)?.[0] || "";
+    const category = courseId ? studentCourseCategories.byCourseId.get(courseId) : "";
+    if (category) {
+      return {
+        value: category,
+        rank: CATEGORY_RANK.studentPlan,
+        source: "planCourseTypeMap"
+      };
+    }
+    if (courseId && studentCourseCategories.fallback) {
+      return {
+        value: studentCourseCategories.fallback,
+        rank: CATEGORY_RANK.studentFallback,
+        source: "planCourseTypeMap-fallback"
+      };
+    }
+    return null;
   }
 
   function normalizeTeachers(value) {
@@ -4793,6 +4896,9 @@
     return {
       version: APP_VERSION,
       lessonCount: lessons.length,
+      studentCategoryMapCount: studentCourseCategories.byCourseId.size,
+      studentCategoryFallback: studentCourseCategories.fallback,
+      studentCategorySource: studentCourseCategories.source,
       rowIndexCount: rowIndex.size,
       apiTemplateCount: apiTemplates.length,
       planGapCount: curriculumPlan.gaps.length,
@@ -4824,6 +4930,8 @@
     if (!panel) return;
     const state = debugState();
     panel.dataset.lessonCount = String(state.lessonCount);
+    panel.dataset.studentCategoryMapCount = String(state.studentCategoryMapCount);
+    panel.dataset.studentCategoryFallback = state.studentCategoryFallback;
     panel.dataset.rowIndexCount = String(state.rowIndexCount);
     panel.dataset.apiTemplateCount = String(state.apiTemplateCount);
     panel.dataset.planGapCount = String(state.planGapCount);
@@ -4862,6 +4970,7 @@
       id: item.id,
       no: item.no,
       code: item.code,
+      courseId: asText(item.raw?.courseId),
       name: item.name,
       category: item.category,
       categorySource: item.categorySource,
